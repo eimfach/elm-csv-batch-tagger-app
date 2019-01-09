@@ -11,7 +11,7 @@ view fileExists changeMsg =
     div [ class "" ]
         [ h3
             [ class "uk-heading-line uk-text-center" ]
-            [ span [] [ text "Upload a file" ]
+            [ span [] [ text "Select a file" ]
             ]
         , input
             [ type_ "file", id "csv-upload", name "csv-upload", on "change" (succeed changeMsg) ]

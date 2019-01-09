@@ -335,7 +335,6 @@ view model =
             model.showModal.title
             model.showModal.content
             model.showModal.buttons
-        , NavBar.view
         , div
             []
             [ div []

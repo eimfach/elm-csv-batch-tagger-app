@@ -1,8 +1,12 @@
-module View.NavBar exposing (view, viewIconNav, NavItem(..))
+module View.NavBar exposing (NavItem(..), view, viewIconNav)
 
 import Html exposing (a, div, li, nav, text, ul)
 import Html.Attributes exposing (attribute, class, href)
 import Html.Events exposing (onClick)
+
+
+
+--deprecated--
 
 
 type NavItem
