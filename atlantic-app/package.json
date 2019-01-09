@@ -2,6 +2,9 @@
   "name": "finance-app",
   "version": "1.0.0",
   "author": "Robin Gruenke",
+  "engines" : {
+    "node" : ">=10.0.0 <11.0.0"
+  },
   "scripts": {
     "start": "webpack-dev-server --hot --inline",
     "build": "rimraf dist && webpack && mv dist/*.eot dist/static/css/ && mv dist/*.woff* dist/static/css/ && mv dist/*.svg dist/static/css/ && mv dist/*.ttf dist/static/css/",
