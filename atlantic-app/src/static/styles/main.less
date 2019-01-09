@@ -1,0 +1,79 @@
+@import "~uikit/src/less/uikit.theme.less";
+@import "effects";
+
+@gray-darker: #424242;
+@gray-dark: #616161;
+@gray: #9e9e9e;
+@gray-light: #e0e0e0;
+@gray-lighter: #eeeeee;
+
+@border-primary: @gray-lighter;
+@border-dark: @gray;
+
+h3 {
+  font-style: italic;
+  margin-top: 2em;
+  font-weight: 100;
+}
+
+.uk-button {
+  border: 1px solid @border-primary;
+}
+
+.uk-label {
+  font-size: 11px;
+  font-weight: 100;
+}
+
+.uk-list {
+  li {
+    line-height: 42px;
+  }
+}
+
+.file-upload-button {
+  padding: 0;
+
+  &.no-file {
+    border: 1px dashed @border-primary;
+    background-color: #fff;
+  }
+  &.no-file:hover {
+    border-color: @border-dark;
+
+  }
+
+  .file-label {
+    width: 100%;
+    line-height: 100px;
+
+    svg {
+      width: 40px;
+      height: 40px;
+    }
+  }
+}
+.icon-nav {
+  top: 35px;
+}
+.input-with-button {
+  position: relative;
+
+  .uk-button {
+    position: absolute;
+    right: 0;
+  }
+}
+
+.modal-content {
+  height: 300px;
+}
+
+.ui-disabled {
+  opacity: 0.2;
+}
+
+
+#csv-upload {
+  display: none;
+}
