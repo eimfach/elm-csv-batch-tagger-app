@@ -40,8 +40,8 @@ main =
 
 
 type TaggingOption
-    = ManualTagging
-    | MultiAutoTagging
+    = SingleTagging
+    | BatchTagging
 
 
 type UndoStrategy
@@ -103,7 +103,7 @@ init =
       , tableData = []
       , tableDataTagged = []
       , autoTagPointer = ""
-      , optionTagging = ManualTagging
+      , optionTagging = SingleTagging
       , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
       }
     , Cmd.none
@@ -363,10 +363,10 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
 
         taggingAction tag =
             case taggingOption of
-                ManualTagging ->
+                SingleTagging ->
                     MapRecordToTag (Structure.Single row) tag
 
-                MultiAutoTagging ->
+                BatchTagging ->
                     let
                         pattern =
                             Regex.caseInsensitive (Regex.regex keyword)
@@ -407,10 +407,10 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
         ( singleIsActiveTab, viewTab ) =
             case taggingOption of
                 {--tab selection is naive--}
-                ManualTagging ->
+                SingleTagging ->
                     ( True, viewManualTaggingTab headers row.cells )
 
-                MultiAutoTagging ->
+                BatchTagging ->
                     ( False, viewAutoTaggingTab colIndex KeyWordInput SetAutoTagPointer headers rows )
     in
     if List.isEmpty row.cells then
@@ -431,15 +431,15 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                 [ ul
                     [ class "uk-child-width-expand", attribute "uk-tab" "" ]
                     [ li
-                        [ onClick (SetTaggingOption ManualTagging)
+                        [ onClick (SetTaggingOption SingleTagging)
                         , classList [ ( "uk-active", singleIsActiveTab ) ]
                         ]
-                        [ a [ href "#" ] [ text "Manual Tagging" ] ]
+                        [ a [ href "#" ] [ text "Single Tagging" ] ]
                     , li
-                        [ onClick (SetTaggingOption MultiAutoTagging)
+                        [ onClick (SetTaggingOption BatchTagging)
                         , classList [ ( "uk-active", not singleIsActiveTab ) ]
                         ]
-                        [ a [ href "#" ] [ text "Auto Tagging" ] ]
+                        [ a [ href "#" ] [ text "Batch Tagging" ] ]
                     ]
                 ]
             , viewTab
