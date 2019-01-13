@@ -3,6 +3,7 @@ module View.Table exposing (view, viewSingle, viewWithTagData)
 import Data.Table exposing (Row, flattenRows, prependCellToRow)
 import Html exposing (Html, div, h3, h4, h5, p, small, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class)
+import View.NavBar as NavBar
 
 
 viewSingle : List (Html.Attribute msg) -> List String -> List String -> Html msg
@@ -11,9 +12,9 @@ viewSingle cellAttr headers record =
         [ table
             [ class "uk-table uk-table-responsive uk-table-divider" ]
             [ thead []
-                [ viewRow (th) [] headers ]
+                [ viewRow th [] headers ]
             , tbody []
-                [ viewRow (td) cellAttr record ]
+                [ viewRow td cellAttr record ]
             ]
         ]
 
@@ -22,9 +23,9 @@ view : List String -> List (List String) -> Html msg
 view headers rows =
     table [ class "uk-table uk-table-responsive uk-table-divider" ]
         [ thead []
-            [ viewRow (th) [] headers ]
+            [ viewRow th [] headers ]
         , tbody []
-            (List.map (\row -> viewRow (td) [] row) rows)
+            (List.map (\row -> viewRow td [] row) rows)
         ]
 
 
@@ -37,17 +38,24 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : Data.Table.TableDataTagged -> Html msg
-viewWithTagData { tag, headers, rows } =
+viewWithTagData : Data.Table.TableDataTagged -> msg -> Html msg
+viewWithTagData { tag, headers, rows } exportAction =
     let
         plainPreparedRows =
             List.map (prependCellToRow tag) rows |> flattenRows
     in
-        div []
-            [ p
-                []
-                [ h4 [] [ text tag ] ]
-            , view
-                ("Tag" :: headers)
-                plainPreparedRows
+    div []
+        [ p
+            [ class "uk-position-relative" ]
+            [ h3
+                [ class "uk-heading-line uk-text-center" ]
+                [ span
+                    [ class "uk-text-large" ]
+                    [ text tag ]
+                ]
+            , NavBar.viewIconNav [ ( NavBar.Export, exportAction, [] ) ]
             ]
+        , view
+            ("Tag" :: headers)
+            plainPreparedRows
+        ]

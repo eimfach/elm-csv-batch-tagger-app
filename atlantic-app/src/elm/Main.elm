@@ -421,7 +421,7 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
             [ div [ class "uk-position-relative" ]
                 [ h3
                     [ class "uk-heading-line uk-text-center" ]
-                    [ span []
+                    [ span [ class "uk-text-background uk-text-bold uk-text-large" ]
                         [ text ("Apply tags (" ++ toString (List.length rows) ++ " left)")
                         ]
                     ]
@@ -480,7 +480,7 @@ viewTaggingIconNav ( history1, history2 ) =
         ]
 
 
-viewMappedRecordsPanel : List String -> List TableDataTagged -> Html msg
+viewMappedRecordsPanel : List String -> List TableDataTagged -> Html Msg
 viewMappedRecordsPanel headers someTables =
     if List.isEmpty someTables then
         text ""
@@ -488,12 +488,16 @@ viewMappedRecordsPanel headers someTables =
     else
         let
             rows =
-                List.map Table.viewWithTagData someTables
+                someTables
+                    |> List.map Table.viewWithTagData
+                    |> List.map (\viewWithTagData -> viewWithTagData NoOp)
         in
         div []
             ([ h3
                 [ class "uk-heading-line uk-text-center" ]
-                [ span [] [ text "Tagged records" ]
+                [ span
+                    [ class "uk-text-background uk-text-bold uk-text-large" ]
+                    [ text "Tagged records" ]
                 ]
              ]
                 ++ rows

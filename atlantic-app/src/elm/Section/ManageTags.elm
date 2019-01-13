@@ -16,7 +16,7 @@ view error buffer tags tagInputMsg createTagMsg removeTagMsg =
         [ div [ class "" ]
             [ h3
                 [ class "uk-heading-line uk-text-center" ]
-                [ span [] [ text "Manage your tags" ]
+                [ span [ class "uk-text-background uk-text-bold uk-text-large" ] [ text "Manage your tags" ]
                 ]
             ]
         , div [ class "" ]

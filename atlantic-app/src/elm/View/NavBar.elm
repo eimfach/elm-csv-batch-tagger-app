@@ -14,6 +14,7 @@ type NavItem
     | Redo
     | Forward
     | Backward
+    | Export
     | Disabled NavItem
 
 
@@ -39,6 +40,9 @@ mapActionToElement ( action, msg, attr ) =
 
         Backward ->
             viewIconNavItem ([ attribute "uk-icon" "icon: chevron-left" ] ++ attr) msg
+
+        Export ->
+            viewIconNavItem ([ attribute "uk-icon" "icon: download" ] ++ attr) msg
 
         Disabled action ->
             mapActionToElement ( action, msg, [ class "ui-disabled uk-disabled" ] )
