@@ -44,8 +44,8 @@ mapActionToElement ( action, msg, attr ) =
         Export ->
             viewIconNavItem ([ attribute "uk-icon" "icon: download" ] ++ attr) msg
 
-        Disabled action ->
-            mapActionToElement ( action, msg, [ class "ui-disabled uk-disabled" ] )
+        Disabled action_ ->
+            mapActionToElement ( action_, msg, [ class "ui-disabled uk-disabled" ] )
 
 
 view : Html.Html msg

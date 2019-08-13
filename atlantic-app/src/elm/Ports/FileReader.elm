@@ -1,4 +1,4 @@
-port module Ports.FileReader exposing (..)
+port module Ports.FileReader exposing (FileData, fileContentRead, fileSelected)
 
 
 type alias FileData =

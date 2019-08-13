@@ -1,7 +1,7 @@
-module Data.Structure exposing (Bucket(Single, Multiple))
+module Data.Structure exposing (Bucket(..))
 
 {-| data of type Bucket can be either a single instance of type `a`,
- or a List of type `a`
+or a List of type `a`
 -}
 
 

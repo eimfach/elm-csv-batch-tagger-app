@@ -1,4 +1,4 @@
-module View.Input exposing (viewDefault, viewWithButton, viewRadio, viewRadioGroup)
+module View.Input exposing (viewDefault, viewRadio, viewRadioGroup, viewWithButton)
 
 import Data.Button
 import Data.Input
@@ -48,9 +48,12 @@ viewWithButton inputAttr btnActionType msg =
 
 
 {-|
+
     message
-  , groupName
-  , labelText
+
+, groupName
+, labelText
+
 -}
 viewRadio : (String -> msg) -> String -> String -> Html msg
 viewRadio action groupName labelText =

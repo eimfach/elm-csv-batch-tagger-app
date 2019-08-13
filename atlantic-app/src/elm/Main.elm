@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Base64
+import Browser
 import Csv exposing (Csv)
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, Keyword, Tag)
 import Data.Button
@@ -27,16 +28,6 @@ import View.Tags as Tags
 
 
 {- make invalid state impossible -}
-
-
-main : Program Never Model Msg
-main =
-    Html.program
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
-        }
 
 
 type TaggingOption
@@ -86,8 +77,18 @@ type Msg
     | UndoMapRecordToTag UndoStrategy
 
 
-init : ( Model, Cmd Msg )
-init =
+main : Program (List String) Model Msg
+main =
+    Browser.element
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        , view = view
+        }
+
+
+init : List String -> ( Model, Cmd Msg )
+init flags =
     let
         tags =
             [ "haushalt", "hobby", "horem", "ipsum" ]
@@ -369,7 +370,8 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                 BatchTagging ->
                     let
                         pattern =
-                            Regex.caseInsensitive (Regex.regex keyword)
+                            Regex.fromString keyword
+                                |> Maybe.withDefault Regex.never
 
                         autoMatchedRecords =
                             if String.isEmpty keyword then
@@ -379,30 +381,27 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                                 {--extract records by keyword --}
                                 rows
                                     |> List.filter
-                                        (\row ->
-                                            ListExtra.getAt colIndex row.cells
+                                        (\row_ ->
+                                            ListExtra.getAt colIndex row_.cells
                                                 |> Maybe.withDefault ""
                                                 |> Regex.contains pattern
                                         )
 
                         plainMatchedRecords =
                             rowPlain autoMatchedRecords
-
-                        openModal records =
-                            if List.isEmpty records then
-                                OpenModalInfo
-                                    "Records that will be tagged"
-                                    (text "There were no matching records found")
-                                    CloseModal
-
-                            else
-                                OpenModal
-                                    "Records that will be tagged"
-                                    (Table.view headers records)
-                                    (MapRecordToTag (Structure.Multiple autoMatchedRecords) tag)
-                                    CloseModal
                     in
-                    openModal plainMatchedRecords
+                    if List.isEmpty plainMatchedRecords then
+                        OpenModalInfo
+                            "Records that will be tagged"
+                            (text "There were no matching records found")
+                            CloseModal
+
+                    else
+                        OpenModal
+                            "Records that will be tagged"
+                            (Table.view headers plainMatchedRecords)
+                            (MapRecordToTag (Structure.Multiple autoMatchedRecords) tag)
+                            CloseModal
 
         ( singleIsActiveTab, viewTab ) =
             case taggingOption of
@@ -422,7 +421,7 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                 [ h3
                     [ class "uk-heading-line uk-text-center" ]
                     [ span [ class "uk-text-background uk-text-bold uk-text-large" ]
-                        [ text ("Apply tags (" ++ toString (List.length rows) ++ " left)")
+                        [ text ("Apply tags (" ++ String.fromInt (List.length rows) ++ " left)")
                         ]
                     ]
                 , nav

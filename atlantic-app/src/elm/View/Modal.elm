@@ -18,23 +18,23 @@ view visiblity heading content buttons =
         ( active, css ) =
             case visiblity of
                 Data.Modal.Visible ->
-                    ( True, style [ ( "display", "block" ) ] )
+                    ( True, style "display" "block" )
 
                 Data.Modal.NotVisible ->
-                    ( False, style [ ( "", "" ) ] )
+                    ( False, style "" "" )
     in
-        div [ class "uk-modal", classList [ ( "uk-open", active ) ], css ]
-            [ div [ class "uk-modal-dialog", attribute "uk-overflow-auto" "" ]
-                [ button [ class "uk-modal-close-default", type_ "button", attribute "uk-close" "" ]
-                    []
-                , div [ class "uk-modal-header" ]
-                    [ h2 [ class "uk-modal-title" ]
-                        [ text heading ]
-                    ]
-                , div [ class "uk-modal-body" ]
-                    [ content ]
-                , div
-                    [ class "uk-modal-footer uk-text-right" ]
-                    (List.map viewModalButton buttons)
+    div [ class "uk-modal", classList [ ( "uk-open", active ) ], css ]
+        [ div [ class "uk-modal-dialog", attribute "uk-overflow-auto" "" ]
+            [ button [ class "uk-modal-close-default", type_ "button", attribute "uk-close" "" ]
+                []
+            , div [ class "uk-modal-header" ]
+                [ h2 [ class "uk-modal-title" ]
+                    [ text heading ]
                 ]
+            , div [ class "uk-modal-body" ]
+                [ content ]
+            , div
+                [ class "uk-modal-footer uk-text-right" ]
+                (List.map viewModalButton buttons)
             ]
+        ]

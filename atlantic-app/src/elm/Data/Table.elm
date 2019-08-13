@@ -1,4 +1,4 @@
-module Data.Table exposing (TableData, Row, TableDataTagged, flattenRows, prependCellToRow)
+module Data.Table exposing (Row, TableData, TableDataTagged, flattenRows, prependCellToRow)
 
 import Data.Alias exposing (ColumnHeadingName, Tag)
 import Unique exposing (Unique)

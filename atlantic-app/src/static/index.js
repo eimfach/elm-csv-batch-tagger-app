@@ -8,8 +8,11 @@ uikit.use(icons)
 
 // inject bundled Elm app into div#main
 var Elm = require('../elm/Main')
-
-var app = Elm.Main.fullscreen()
+//var app = Elm.Main.fullscreen()
+var app = Elm.Elm.Main.init({
+  node: document.getElementById('main'),
+  flags: []
+});
 
 app.ports.fileSelected.subscribe(function (id) {
   var node = document.getElementById(id)

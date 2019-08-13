@@ -1,10 +1,10 @@
 module View.Button exposing (view)
 
+import Data.Button
 import Html exposing (button, span, text)
 import Html.Attributes exposing (attribute, class, type_)
 import Html.Events exposing (onClick)
 import Set
-import Data.Button
 
 
 mapButtonStyles : Data.Button.Type -> String
@@ -19,7 +19,7 @@ mapButtonStyles btnType =
         Data.Button.Default ->
             createPrefixedClass (Set.fromList [ "button", "button-default" ])
 
-        Data.Button.Composed btnType sizeTag alignment ->
+        Data.Button.Composed btnType_ sizeTag alignment ->
             let
                 sizeClasses =
                     case sizeTag of
@@ -43,7 +43,7 @@ mapButtonStyles btnType =
                         Data.Button.NoAlign ->
                             createPrefixedClass Set.empty
             in
-                (mapButtonStyles btnType) ++ sizeClasses ++ alignmentClasses
+            mapButtonStyles btnType_ ++ sizeClasses ++ alignmentClasses
 
 
 mapButtonActionType : Data.Button.ActionType -> List (Html.Attribute msg)
@@ -83,4 +83,4 @@ createPrefixedClass classes =
         prefix =
             "uk-"
     in
-        Set.foldr (\class acc -> acc ++ prefix ++ class ++ " ") "" classes
+    Set.foldr (\class acc -> acc ++ prefix ++ class ++ " ") "" classes
