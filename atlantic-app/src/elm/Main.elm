@@ -3,18 +3,19 @@ module Main exposing (main)
 import Base64
 import Browser
 import Csv exposing (Csv)
-import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, Keyword, Tag)
+import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
 import Data.Structure as Structure
 import Data.Table exposing (Row, TableData, TableDataTagged, flattenRows)
+import Dict exposing (Dict)
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
 import Html.Events exposing (on, onClick, onInput)
 import List.Extra as ListExtra
 import Ports.FileReader exposing (FileData, fileContentRead, fileSelected)
 import Regex exposing (Regex)
-import Section.ApplyTags exposing (viewAutoTaggingTab, viewManualTaggingTab)
+import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 import Section.FileUpload
 import Section.ManageTags
 import Set exposing (Set)
@@ -47,13 +48,12 @@ type alias Model =
     { tags : Set String
     , addTagInputBuffer : String
     , addTagInputError : ( String, Bool )
-    , keyWordInputBuffer : Keyword
     , mapTagInputBuffer : String
     , fileUploadPointerId : HtmlNodeId
     , file : Maybe FileData
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
-    , autoTagPointer : ColumnHeadingName
+    , batchTaggingOptions : Dict ColumnHeadingName (Maybe SearchPattern)
     , optionTagging : TaggingOption
     , showModal : Data.Modal.State Msg
     }
@@ -67,8 +67,7 @@ type Msg
     | ParseToCsv FileData
     | MapRecordToTag (Structure.Bucket Row) (Maybe String)
     | MapTagInput String
-    | SetAutoTagPointer ColumnHeadingName
-    | KeyWordInput Keyword
+    | SearchPatternInput ColumnHeadingName SearchPattern
     | SetTaggingOption TaggingOption
     | NoOp
     | OpenModal Data.Modal.Title HtmlNode Msg Msg
@@ -97,13 +96,12 @@ init flags =
     ( { tags = tags
       , addTagInputBuffer = ""
       , addTagInputError = ( "", False )
-      , keyWordInputBuffer = ""
       , mapTagInputBuffer = ""
       , fileUploadPointerId = "csv-upload"
       , file = Nothing
       , tableData = []
       , tableDataTagged = []
-      , autoTagPointer = ""
+      , batchTaggingOptions = Dict.empty
       , optionTagging = SingleTagging
       , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
       }
@@ -246,11 +244,17 @@ update msg model =
         MapTagInput val ->
             ( { model | mapTagInputBuffer = val }, Cmd.none )
 
-        SetAutoTagPointer column ->
-            ( { model | autoTagPointer = column }, Cmd.none )
+        SearchPatternInput columnKey searchPatternInput ->
+            let
+                columnActive =
+                    Dict.get columnKey model.batchTaggingOptions
+            in
+            case columnActive of
+                Just searchPattern_ ->
+                    ( { model | batchTaggingOptions = Dict.insert columnKey (Just searchPatternInput) model.batchTaggingOptions }, Cmd.none )
 
-        KeyWordInput val ->
-            ( { model | keyWordInputBuffer = val }, Cmd.none )
+                Nothing ->
+                    ( { model | batchTaggingOptions = Dict.remove columnKey model.batchTaggingOptions }, Cmd.none )
 
         SetTaggingOption opt ->
             ( { model | optionTagging = opt }, Cmd.none )
@@ -344,7 +348,7 @@ view model =
                 [ Section.ManageTags.view model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
-                [ viewTaggingSection model.optionTagging model.autoTagPointer model.keyWordInputBuffer model.tags tableData.headers currentRow tableData.rows taggingSectionNav
+                [ viewTaggingSection model.optionTagging "Beschreibung" model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
                 ]
             ]
         , div
@@ -356,11 +360,14 @@ view model =
         ]
 
 
-viewTaggingSection : TaggingOption -> HtmlNodeId -> Keyword -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
-viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows nav =
+viewTaggingSection : TaggingOption -> ColumnHeadingName -> Dict ColumnHeadingName (Maybe SearchPattern) -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
+viewTaggingSection taggingOption columnName searchPattern tags headers row rows nav =
     let
         colIndex =
-            getColIndex 0 autoTagPointer headers
+            getColIndex 0 columnName headers
+        {- TODO: placeholder for now until a combined search is implemented-}
+        keyword =
+            "Fitx"
 
         taggingAction tag =
             case taggingOption of
@@ -410,7 +417,7 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                     ( True, viewManualTaggingTab headers row.cells )
 
                 BatchTagging ->
-                    ( False, viewAutoTaggingTab colIndex KeyWordInput SetAutoTagPointer headers rows )
+                    ( False, viewBatchTaggingTab SearchPatternInput headers rows )
     in
     if List.isEmpty row.cells then
         text ""
@@ -443,13 +450,6 @@ viewTaggingSection taggingOption autoTagPointer keyword tags headers row rows na
                 ]
             , viewTab
             , hr [ class "uk-divider-icon" ] []
-            , p
-                []
-                [ Autocomplete.view
-                    "tag-autocomplete"
-                    [ onInput MapTagInput, placeholder "Search for tag" ]
-                    tags
-                ]
             , Tags.viewTagCloud (\tag -> taggingAction (Just tag)) tags
             ]
 

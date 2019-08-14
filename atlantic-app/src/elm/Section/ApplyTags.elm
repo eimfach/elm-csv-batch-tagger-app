@@ -1,6 +1,6 @@
-module Section.ApplyTags exposing (viewAutoTaggingTab, viewManualTaggingTab)
+module Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 
-import Data.Alias exposing (ColumnHeadingName, HtmlNodeId)
+import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern)
 import Data.Table exposing (Row)
 import Html exposing (div, p, span, text)
 import Html.Attributes exposing (class, placeholder)
@@ -8,12 +8,10 @@ import Html.Events exposing (onInput)
 import List.Extra as ListExtra
 import Set exposing (Set)
 import View.Autocomplete
-import View.Input exposing (viewRadioGroup)
 import View.Table
 
-
 viewManualTaggingTab : List ColumnHeadingName -> List String -> Html.Html msg
-viewManualTaggingTab headers columns =
+viewManualTaggingTab columns records =
     div []
         [ p
             [ class "uk-text-meta" ]
@@ -24,13 +22,13 @@ viewManualTaggingTab headers columns =
             ]
         , View.Table.viewSingle
             []
-            headers
+            records
             columns
         ]
 
 
-viewAutoTaggingTab : Int -> (String -> msg) -> (String -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
-viewAutoTaggingTab colIndex inputAction setPointerAction headers records =
+viewBatchTaggingTab : (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTaggingTab inputAction columns records =
     div []
         [ p
             [ class "uk-text-meta" ]
@@ -39,26 +37,20 @@ viewAutoTaggingTab colIndex inputAction setPointerAction headers records =
                 [ text "NOTE" ]
             , text "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
             ]
-        , viewAutoRecordMapper colIndex inputAction setPointerAction headers records
+        , viewBatchTagging inputAction columns records
         ]
 
 
-viewAutoRecordMapper : Int -> (String -> msg) -> (String -> msg) -> List String -> List Row -> Html.Html msg
-viewAutoRecordMapper colIndex inputAction setPointerAction headers records =
+viewBatchTagging : (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTagging inputAction columns records =
     let
-        {- how does this make sense ? -}
-        autoTagOptions =
-            records
-                |> List.map (\record -> ListExtra.getAt colIndex record.cells)
-                |> List.map (\a -> Maybe.withDefault "" a)
-                |> ListExtra.dropWhile (\str -> String.isEmpty str)
+        {- TODO: implement autocomplete for each column -}
+
 
         autoTagger =
-            if List.isEmpty autoTagOptions then
-                text ""
-
-            else
-                viewAutoTagger (Set.fromList autoTagOptions) inputAction
+            columns
+            |> List.map (\column -> (viewBatchTaggingInput column Set.empty (inputAction column)))
+                
     in
     if List.isEmpty records then
         text ""
@@ -68,15 +60,15 @@ viewAutoRecordMapper colIndex inputAction setPointerAction headers records =
             []
             [ p
                 [ class "uk-width-1-1" ]
-                (viewRadioGroup "autoTagPointer" setPointerAction headers
-                    ++ [ autoTagger ]
-                )
+                autoTagger
+                
             ]
 
 
-viewAutoTagger : Set String -> (String -> msg) -> Html.Html msg
-viewAutoTagger options action =
+viewBatchTaggingInput : String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput labelText options action =
     View.Autocomplete.view
+        labelText
         "autoTagger"
         [ placeholder "Select a keyword (Plain or Regex)", onInput action ]
         options

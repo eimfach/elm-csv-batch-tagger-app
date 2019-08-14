@@ -4,7 +4,7 @@ import Data.Button
 import Data.Input
 import Html exposing (Html, button, div, input, label, span, text)
 import Html.Attributes exposing (class, classList, name, type_)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import View.Button as Button
 
 

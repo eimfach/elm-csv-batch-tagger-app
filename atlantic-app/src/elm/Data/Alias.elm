@@ -1,4 +1,4 @@
-module Data.Alias exposing (ColumnHeadingName, HtmlNodeId, Keyword, Tag)
+module Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 
 
 type alias ColumnHeadingName =
@@ -9,7 +9,7 @@ type alias HtmlNodeId =
     String
 
 
-type alias Keyword =
+type alias SearchPattern =
     String
 
 
