@@ -336,6 +336,7 @@ view model =
     in
     div [ id "container", class "uk-container" ]
         [ Modal.view
+            CloseModal
             model.showModal.visible
             model.showModal.title
             model.showModal.content
@@ -367,7 +368,7 @@ viewTaggingSection taggingOption columnName searchPattern tags headers row rows 
             getColIndex 0 columnName headers
         {- TODO: placeholder for now until a combined search is implemented-}
         keyword =
-            "Fitx"
+            "a"
 
         taggingAction tag =
             case taggingOption of
@@ -396,16 +397,19 @@ viewTaggingSection taggingOption columnName searchPattern tags headers row rows 
 
                         plainMatchedRecords =
                             rowPlain autoMatchedRecords
+                        
+                        modelTitleText =
+                            ((String.fromInt (List.length plainMatchedRecords)) ++ " Records that will be tagged")
                     in
                     if List.isEmpty plainMatchedRecords then
                         OpenModalInfo
-                            "Records that will be tagged"
+                            modelTitleText
                             (text "There were no matching records found")
                             CloseModal
 
                     else
                         OpenModal
-                            "Records that will be tagged"
+                            modelTitleText
                             (Table.view headers plainMatchedRecords)
                             (MapRecordToTag (Structure.Multiple autoMatchedRecords) tag)
                             CloseModal
