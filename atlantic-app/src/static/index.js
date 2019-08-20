@@ -3,6 +3,16 @@ require('./styles/main.less')
 const uikit = require('uikit')
 const icons = require('uikit/dist/js/uikit-icons')
 
+/*if (process.browser === undefined) {
+  const { ipcRenderer } = require('electron')
+  ipcRenderer.on('asynchronous-message', (event, arg) => {
+    console.log(arg) // prints "ping"
+    event.reply('asynchronous-reply', 'pong')
+  })
+  ipcRenderer.send('asynchronous-message', 'ping')
+}*/
+
+
 uikit.use(icons)
 // uikit.notification('Hello world Uikit.', 200000);
 

@@ -7,7 +7,7 @@ import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
 import Data.Structure as Structure
-import Data.Table exposing (Row, TableData, TableDataTagged, flattenRows)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, flattenRows)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
@@ -53,7 +53,7 @@ type alias Model =
     , file : Maybe FileData
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
-    , batchTaggingOptions : Dict ColumnHeadingName (Maybe SearchPattern)
+    , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
     , optionTagging : TaggingOption
     , showModal : Data.Modal.State Msg
     }
@@ -245,15 +245,11 @@ update msg model =
             ( { model | mapTagInputBuffer = val }, Cmd.none )
 
         SearchPatternInput columnKey searchPatternInput ->
-            let
-                columnActive =
-                    Dict.get columnKey model.batchTaggingOptions
-            in
-            case columnActive of
-                Just searchPattern_ ->
-                    ( { model | batchTaggingOptions = Dict.insert columnKey (Just searchPatternInput) model.batchTaggingOptions }, Cmd.none )
+            case String.isEmpty searchPatternInput of
+                False ->
+                    ( { model | batchTaggingOptions = Dict.insert columnKey searchPatternInput model.batchTaggingOptions }, Cmd.none )
 
-                Nothing ->
+                True ->
                     ( { model | batchTaggingOptions = Dict.remove columnKey model.batchTaggingOptions }, Cmd.none )
 
         SetTaggingOption opt ->
@@ -349,7 +345,7 @@ view model =
                 [ Section.ManageTags.view model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
-                [ viewTaggingSection model.optionTagging "Beschreibung" model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
+                [ viewTaggingSection model.optionTagging model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
                 ]
             ]
         , div
@@ -360,16 +356,27 @@ view model =
             ]
         ]
 
-
-viewTaggingSection : TaggingOption -> ColumnHeadingName -> Dict ColumnHeadingName (Maybe SearchPattern) -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
-viewTaggingSection taggingOption columnName searchPattern tags headers row rows nav =
+mapRowCellsToHaveColumns: List ColumnHeadingName -> Row -> { id : Unique.Id, cells : List (ColumnHeadingName, Cell), tags : List Tag }
+mapRowCellsToHaveColumns headers row =
     let
-        colIndex =
-            getColIndex 0 columnName headers
-        {- TODO: placeholder for now until a combined search is implemented-}
-        keyword =
-            "a"
+        newCells =
+            List.map2 Tuple.pair headers row.cells
+    in
+    { cells = newCells , id = row.id , tags = row.tags }
 
+mapRowCellsToRemoveColumns: { id : Unique.Id, cells : List (ColumnHeadingName, Cell), tags : List Tag } -> Row
+mapRowCellsToRemoveColumns row =
+    let
+        newCells =
+            List.map (\(column, cell) -> cell) row.cells
+    in
+    Row row.id newCells row.tags
+
+viewTaggingSection : TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
+viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
+    let
+        {--TODO: move parts of this to the update function as a standalone action ? --}
+        {--TODO: Refactor to have combined to search --}
         taggingAction tag =
             case taggingOption of
                 SingleTagging ->
@@ -377,29 +384,51 @@ viewTaggingSection taggingOption columnName searchPattern tags headers row rows 
 
                 BatchTagging ->
                     let
-                        pattern =
-                            Regex.fromString keyword
-                                |> Maybe.withDefault Regex.never
+                        
+                        plainRows =
+                            rowPlain rows
 
-                        autoMatchedRecords =
-                            if String.isEmpty keyword then
-                                []
+                        matchedRows =
+                            rows
+                                |> List.map
+                                    (mapRowCellsToHaveColumns headers)
+                                |> List.filter
+                                    (\row_ ->
+                                        let
+                                            matchingCellCount =
+                                                List.foldr
+                                                    (\( column, cell ) count ->
+                                                        case Dict.get column batchTaggingOptions of
+                                                            Just searchPattern ->
+                                                                let
+                                                                    regexPattern =
+                                                                        Regex.fromString searchPattern
+                                                                            |> Maybe.withDefault Regex.never
+                                                                in
+                                                                if Regex.contains regexPattern cell then
+                                                                    count + 1
 
-                            else
-                                {--extract records by keyword --}
-                                rows
-                                    |> List.filter
-                                        (\row_ ->
-                                            ListExtra.getAt colIndex row_.cells
-                                                |> Maybe.withDefault ""
-                                                |> Regex.contains pattern
-                                        )
+                                                                else
+                                                                    count
+
+                                                            Nothing ->
+                                                                count
+                                                    )
+                                                    0
+                                                    row_.cells
+                                        in
+                                        Dict.size batchTaggingOptions == matchingCellCount
+                                    )
+
+                        matchedRowsAsRowType =
+                            matchedRows
+                            |> List.map mapRowCellsToRemoveColumns
 
                         plainMatchedRecords =
-                            rowPlain autoMatchedRecords
-                        
+                             rowPlain matchedRowsAsRowType
+
                         modelTitleText =
-                            ((String.fromInt (List.length plainMatchedRecords)) ++ " Records that will be tagged")
+                            String.fromInt (List.length plainMatchedRecords) ++ " Records that will be tagged"
                     in
                     if List.isEmpty plainMatchedRecords then
                         OpenModalInfo
@@ -411,7 +440,7 @@ viewTaggingSection taggingOption columnName searchPattern tags headers row rows 
                         OpenModal
                             modelTitleText
                             (Table.view headers plainMatchedRecords)
-                            (MapRecordToTag (Structure.Multiple autoMatchedRecords) tag)
+                            (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
                             CloseModal
 
         ( singleIsActiveTab, viewTab ) =
@@ -535,14 +564,9 @@ setTagInstance theTag headers tableDataTagged =
         tableDataTagged
 
 
-getColIndex : Int -> String -> List String -> Int
-getColIndex default colName columns =
-    case ListExtra.elemIndex colName columns of
-        Just index ->
-            index
-
-        Nothing ->
-            default
+getColIndex : List String -> String -> Maybe Int
+getColIndex columns colName =
+    ListExtra.elemIndex colName columns
 
 
 mapRowToTag : String -> Row -> TableDataTagged -> TableDataTagged
