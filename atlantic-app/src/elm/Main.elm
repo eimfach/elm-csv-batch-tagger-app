@@ -356,21 +356,24 @@ view model =
             ]
         ]
 
-mapRowCellsToHaveColumns: List ColumnHeadingName -> Row -> { id : Unique.Id, cells : List (ColumnHeadingName, Cell), tags : List Tag }
+
+mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { id : Unique.Id, cells : List ( ColumnHeadingName, Cell ), tags : List Tag }
 mapRowCellsToHaveColumns headers row =
     let
         newCells =
             List.map2 Tuple.pair headers row.cells
     in
-    { cells = newCells , id = row.id , tags = row.tags }
+    { cells = List.map2 Tuple.pair headers row.cells, id = row.id, tags = row.tags }
 
-mapRowCellsToRemoveColumns: { id : Unique.Id, cells : List (ColumnHeadingName, Cell), tags : List Tag } -> Row
+
+mapRowCellsToRemoveColumns : { id : Unique.Id, cells : List ( ColumnHeadingName, Cell ), tags : List Tag } -> Row
 mapRowCellsToRemoveColumns row =
     let
         newCells =
-            List.map (\(column, cell) -> cell) row.cells
+            List.map (\( column, cell ) -> cell) row.cells
     in
     Row row.id newCells row.tags
+
 
 viewTaggingSection : TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
 viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
@@ -384,7 +387,6 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
 
                 BatchTagging ->
                     let
-                        
                         plainRows =
                             rowPlain rows
 
@@ -422,10 +424,10 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
 
                         matchedRowsAsRowType =
                             matchedRows
-                            |> List.map mapRowCellsToRemoveColumns
+                                |> List.map mapRowCellsToRemoveColumns
 
                         plainMatchedRecords =
-                             rowPlain matchedRowsAsRowType
+                            rowPlain matchedRowsAsRowType
 
                         modelTitleText =
                             String.fromInt (List.length plainMatchedRecords) ++ " Records that will be tagged"
