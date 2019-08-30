@@ -4,7 +4,7 @@ import Data.Alias
 import Data.Button
 import Html exposing (div, h3, span, text)
 import Html.Attributes exposing (class, placeholder, value)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onInput)
 import Set exposing (Set)
 import View.Input
 import View.Tags

@@ -2,8 +2,8 @@ module View.Tags exposing (viewList, viewTagButton, viewTagButtons, viewTagCloud
 
 import Data.Alias
 import Data.Button
-import Html exposing (Html, button, div, input, li, p, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, type_)
+import Html exposing (Html, li, p, span, text, ul)
+import Html.Attributes exposing (class)
 import Set exposing (Set)
 import View.Button as Button
 

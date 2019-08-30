@@ -1,7 +1,7 @@
 module View.Table exposing (view, viewSingle, viewWithTagData)
 
-import Data.Table exposing (Row, flattenRows, prependCellToRow)
-import Html exposing (Html, div, h3, h4, h5, p, small, span, table, tbody, td, text, th, thead, tr)
+import Data.Table exposing (flattenRows, prependCellToRow)
+import Html exposing (Html, div, h3, p, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class)
 import View.NavBar as NavBar
 

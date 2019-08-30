@@ -67,9 +67,7 @@ view :
     -> Html.Html msg
 view msg btnType btnActionType btnText =
     button
-        ([ type_ "button", onClick msg ]
-            ++ [ class (mapButtonStyles btnType) ]
-        )
+        [ type_ "button", onClick msg, class (mapButtonStyles btnType) ]
         [ span
             (mapButtonActionType btnActionType)
             [ text btnText
