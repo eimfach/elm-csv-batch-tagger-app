@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Base64
 import Browser
@@ -7,13 +7,15 @@ import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
 import Data.Structure as Structure
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, flattenRows)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableData, decodeTableDataList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
 import Html.Events exposing (on, onClick, onInput)
+import Json.Decode as Decode
+import Json.Encode as Encode
 import List.Extra as ListExtra
-import Ports.FileReader exposing (FileData, fileContentRead, fileSelected)
+import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
 import Regex exposing (Regex)
 import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 import Section.FileUpload
@@ -29,6 +31,28 @@ import View.Tags as Tags
 
 
 {- make invalid state impossible -}
+-- MAIN
+
+
+main : Program Decode.Value Model Msg
+main =
+    Browser.element
+        { init = init
+        , update = updateWithStorage
+        , subscriptions = subscriptions
+        , view = view
+        }
+
+
+
+-- PORT
+
+
+port setStorage : Encode.Value -> Cmd msg
+
+
+
+-- TYPES
 
 
 type TaggingOption
@@ -44,8 +68,12 @@ type alias HtmlNode =
     Html.Html Msg
 
 
+
+-- MODEL
+
+
 type alias Model =
-    { tags : Set String
+    { tags : Set Tag
     , addTagInputBuffer : String
     , addTagInputError : ( String, Bool )
     , mapTagInputBuffer : String
@@ -57,6 +85,73 @@ type alias Model =
     , optionTagging : TaggingOption
     , showModal : Data.Modal.State Msg
     }
+
+
+init : Decode.Value -> ( Model, Cmd Msg )
+init flags =
+    let
+        tags =
+            case Decode.decodeValue (Decode.field "tags" (Decode.list Decode.string)) flags of
+                Ok val ->
+                    Set.fromList val
+
+                Err _ ->
+                    Set.fromList []
+
+        fileUploadPointerId =
+            case Decode.decodeValue (Decode.field "fileUploadPointerId" Decode.string) flags of
+                Ok val ->
+                    val
+
+                Err _ ->
+                    "csv-upload"
+
+        file =
+            decodeFileData flags "file"
+
+        tableData =
+            case decodeTableDataList flags "tableData" of
+                Ok val ->
+                    val
+
+                Err errorMsg ->
+                    {- TODO: swalloed error -}
+                    [ TableData [ errorMsg ] [ Row [ errorMsg ] ] ]
+    in
+    ( { tags = tags
+      , addTagInputBuffer = ""
+      , addTagInputError = ( "", False )
+      , mapTagInputBuffer = ""
+      , fileUploadPointerId = fileUploadPointerId
+      , file = file
+      , tableData = tableData
+      , tableDataTagged = []
+      , batchTaggingOptions = Dict.empty
+      , optionTagging = SingleTagging
+      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
+      }
+    , Cmd.none
+    )
+
+
+tuple2Encoder : (a -> Encode.Value) -> (b -> Encode.Value) -> ( a, b ) -> Encode.Value
+tuple2Encoder enc1 enc2 ( val1, val2 ) =
+    Encode.list identity [ enc1 val1, enc2 val2 ]
+
+
+encodeModel : Model -> Encode.Value
+encodeModel model =
+    Encode.object
+        [ ( "tags", Encode.set Encode.string model.tags )
+        , ( "fileUploadPointerId", Encode.string model.fileUploadPointerId )
+        , ( "file", encodeFileData model.file )
+        , ( "tableData", Encode.list encodeTableData model.tableData )
+        , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
+        ]
+
+
+
+-- UPDATE
 
 
 type Msg
@@ -76,37 +171,16 @@ type Msg
     | UndoMapRecordToTag UndoStrategy
 
 
-main : Program (List String) Model Msg
-main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
-        }
-
-
-init : List String -> ( Model, Cmd Msg )
-init flags =
+{-| We want to `setStorage` on every update. This function adds the setStorage
+command for every step of the update function.
+-}
+updateWithStorage : Msg -> Model -> ( Model, Cmd Msg )
+updateWithStorage msg model =
     let
-        tags =
-            [ "haushalt", "hobby", "horem", "ipsum" ]
-                |> Set.fromList
+        ( newModel, cmds ) =
+            update msg model
     in
-    ( { tags = tags
-      , addTagInputBuffer = ""
-      , addTagInputError = ( "", False )
-      , mapTagInputBuffer = ""
-      , fileUploadPointerId = "csv-upload"
-      , file = Nothing
-      , tableData = []
-      , tableDataTagged = []
-      , batchTaggingOptions = Dict.empty
-      , optionTagging = SingleTagging
-      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
-      }
-    , Cmd.none
-    )
+    ( newModel, Cmd.batch [ setStorage (encodeModel newModel), cmds ] )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -147,7 +221,7 @@ update msg model =
             ( model, fileSelected model.fileUploadPointerId )
 
         ParseToCsv fileData ->
-            case decodeFileData fileData.contents of
+            case decodeFileContents fileData.contents of
                 Ok decodedData ->
                     let
                         tableData =
@@ -310,9 +384,17 @@ closeModal model =
     { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title }
 
 
+
+-- SUBSCRIPTIONS
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     fileContentRead ParseToCsv
+
+
+
+-- VIEW
 
 
 view : Model -> HtmlNode
@@ -325,7 +407,7 @@ view model =
             Maybe.withDefault [] (List.head model.tableDataTagged)
 
         currentRow =
-            Maybe.withDefault (Row (Unique.run Unique.unique) [] []) (List.head tableData.rows)
+            Maybe.withDefault (Row []) (List.head tableData.rows)
 
         taggingSectionNav =
             viewTaggingIconNav ( model.tableData, model.tableDataTagged )
@@ -357,29 +439,10 @@ view model =
         ]
 
 
-mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { id : Unique.Id, cells : List ( ColumnHeadingName, Cell ), tags : List Tag }
-mapRowCellsToHaveColumns headers row =
-    let
-        newCells =
-            List.map2 Tuple.pair headers row.cells
-    in
-    { cells = List.map2 Tuple.pair headers row.cells, id = row.id, tags = row.tags }
-
-
-mapRowCellsToRemoveColumns : { id : Unique.Id, cells : List ( ColumnHeadingName, Cell ), tags : List Tag } -> Row
-mapRowCellsToRemoveColumns row =
-    let
-        newCells =
-            List.map (\( column, cell ) -> cell) row.cells
-    in
-    Row row.id newCells row.tags
-
-
 viewTaggingSection : TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
 viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
     let
         {--TODO: move parts of this to the update function as a standalone action ? --}
-        {--TODO: Refactor to have combined to search --}
         taggingAction tag =
             case taggingOption of
                 SingleTagging ->
@@ -387,9 +450,6 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
 
                 BatchTagging ->
                     let
-                        plainRows =
-                            rowPlain rows
-
                         matchedRows =
                             rows
                                 |> List.map
@@ -553,6 +613,24 @@ viewPlainRecords descr headers rows =
             ]
 
 
+mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { cells : List ( ColumnHeadingName, Cell ) }
+mapRowCellsToHaveColumns headers row =
+    let
+        newCells =
+            List.map2 Tuple.pair headers row.cells
+    in
+    { cells = List.map2 Tuple.pair headers row.cells }
+
+
+mapRowCellsToRemoveColumns : { cells : List ( ColumnHeadingName, Cell ) } -> Row
+mapRowCellsToRemoveColumns row =
+    let
+        newCells =
+            List.map (\( column, cell ) -> cell) row.cells
+    in
+    Row newCells
+
+
 setTagInstance : Tag -> List ColumnHeadingName -> List TableDataTagged -> List TableDataTagged
 setTagInstance theTag headers tableDataTagged =
     let
@@ -585,12 +663,6 @@ rowPlain recordList =
     List.map (\record -> record.cells) recordList
 
 
-decodeFileData : String -> Result String String
-decodeFileData encodedData =
-    encodedData
-        |> Base64.decode
-
-
 createTableDataFromCsvData : String -> TableData
 createTableDataFromCsvData contents =
     let
@@ -598,13 +670,8 @@ createTableDataFromCsvData contents =
             contents
                 |> Csv.parseWith ";"
 
-        uniqueIds =
-            Unique.replicate (List.length csv.records) Unique.unique
-                |> Unique.run
-
         recordsConvertedToRows =
-            List.map2 Row uniqueIds csv.records
-                |> List.map (\rowUnderConstruction -> rowUnderConstruction [])
+            List.map Row csv.records
     in
     TableData csv.headers recordsConvertedToRows
 
