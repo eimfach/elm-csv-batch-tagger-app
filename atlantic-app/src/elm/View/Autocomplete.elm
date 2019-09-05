@@ -6,11 +6,11 @@ import Set exposing (Set)
 import View.Input as Input
 
 
-view : String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
-view labelText idVal inputAttr options =
+view : String -> String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
+view labelText val idVal inputAttr options =
     div []
         [ text labelText
-        , Input.viewDefault
+        , Input.viewDefault val
             (inputAttr
                 ++ [ list idVal ]
             )

@@ -3,7 +3,7 @@ module View.Input exposing (viewDefault, viewRadio, viewRadioGroup, viewWithButt
 import Data.Button
 import Data.Input
 import Html exposing (Html, button, div, input, label, span, text)
-import Html.Attributes exposing (class, classList, name, type_)
+import Html.Attributes exposing (class, classList, name, type_, value)
 import Html.Events exposing (onClick, onInput)
 import View.Button as Button
 
@@ -14,11 +14,11 @@ view childs =
         childs
 
 
-viewDefault : Data.Input.Attributes msg -> Html msg
-viewDefault inputAttr =
+viewDefault : String -> Data.Input.Attributes msg -> Html msg
+viewDefault val inputAttr =
     view
         [ input
-            ([ class "uk-input", type_ "text" ]
+            ([ class "uk-input", type_ "text", value val ]
                 ++ inputAttr
             )
             []

@@ -7,7 +7,7 @@ import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
 import Data.Structure as Structure
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableData, decodeTableDataList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
@@ -76,7 +76,6 @@ type alias Model =
     { tags : Set Tag
     , addTagInputBuffer : String
     , addTagInputError : ( String, Bool )
-    , mapTagInputBuffer : String
     , fileUploadPointerId : HtmlNodeId
     , file : Maybe FileData
     , tableData : List TableData
@@ -98,36 +97,36 @@ init flags =
                 Err _ ->
                     Set.fromList []
 
-        fileUploadPointerId =
-            case Decode.decodeValue (Decode.field "fileUploadPointerId" Decode.string) flags of
-                Ok val ->
-                    val
+        addTagInputBuffer =
+            Result.withDefault "" <| Decode.decodeValue (Decode.field "addTagInputBuffer" Decode.string) flags
 
-                Err _ ->
-                    "csv-upload"
+        addTagInputError =
+            Result.withDefault ( "", False ) <| Decode.decodeValue (Decode.field "addTagInputError" (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.bool))) flags
+
+        fileUploadPointerId =
+            Result.withDefault "csv-upload" <| Decode.decodeValue (Decode.field "fileUploadPointerId" Decode.string) flags
 
         file =
             decodeFileData flags "file"
 
         tableData =
-            case decodeTableDataList flags "tableData" of
-                Ok val ->
-                    val
+            Result.withDefault [] <| decodeTableDataList flags "tableData"
 
-                Err errorMsg ->
-                    {- TODO: swalloed error -}
-                    [ TableData [ errorMsg ] [ Row [ errorMsg ] ] ]
+        tableDataTagged =
+            Result.withDefault [] <| decodeTableDataTaggedList flags "tableDataTagged"
+
+        batchTaggingOptions =
+            Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "batchTaggingOptions" (Decode.dict Decode.string)) flags
     in
     ( { tags = tags
-      , addTagInputBuffer = ""
-      , addTagInputError = ( "", False )
-      , mapTagInputBuffer = ""
+      , addTagInputBuffer = addTagInputBuffer
+      , addTagInputError = addTagInputError
       , fileUploadPointerId = fileUploadPointerId
       , file = file
       , tableData = tableData
-      , tableDataTagged = []
-      , batchTaggingOptions = Dict.empty
-      , optionTagging = SingleTagging
+      , tableDataTagged = tableDataTagged
+      , batchTaggingOptions = batchTaggingOptions
+      , optionTagging = BatchTagging
       , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
       }
     , Cmd.none
@@ -143,10 +142,13 @@ encodeModel : Model -> Encode.Value
 encodeModel model =
     Encode.object
         [ ( "tags", Encode.set Encode.string model.tags )
+        , ( "addTagInputBuffer", Encode.string model.addTagInputBuffer )
+        , ( "addTagInputError", tuple2Encoder Encode.string Encode.bool model.addTagInputError )
         , ( "fileUploadPointerId", Encode.string model.fileUploadPointerId )
         , ( "file", encodeFileData model.file )
         , ( "tableData", Encode.list encodeTableData model.tableData )
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
+        , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
         ]
 
 
@@ -160,8 +162,7 @@ type Msg
     | CreateTagFromBuffer
     | FileSelected
     | ParseToCsv FileData
-    | MapRecordToTag (Structure.Bucket Row) (Maybe String)
-    | MapTagInput String
+    | MapRecordToTag (Structure.Bucket Row) Tag
     | SearchPatternInput ColumnHeadingName SearchPattern
     | SetTaggingOption TaggingOption
     | NoOp
@@ -241,11 +242,8 @@ update msg model =
                     in
                     ( openModalInfo "Error" model dialogContent CloseModal, Cmd.none )
 
-        MapRecordToTag recordBucket tag ->
+        MapRecordToTag recordBucket theTag ->
             let
-                theTag =
-                    Maybe.withDefault model.mapTagInputBuffer tag
-
                 tableDataOrigin =
                     Maybe.withDefault (TableData [] []) (List.head model.tableData)
 
@@ -314,9 +312,6 @@ update msg model =
                             }
                     in
                     ( closeModal updatedModel, Cmd.none )
-
-        MapTagInput val ->
-            ( { model | mapTagInputBuffer = val }, Cmd.none )
 
         SearchPatternInput columnKey searchPatternInput ->
             case String.isEmpty searchPatternInput of
@@ -512,7 +507,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                     ( True, viewManualTaggingTab headers row.cells )
 
                 BatchTagging ->
-                    ( False, viewBatchTaggingTab SearchPatternInput headers rows )
+                    ( False, viewBatchTaggingTab batchTaggingOptions SearchPatternInput headers rows )
     in
     if List.isEmpty row.cells then
         text ""
@@ -545,7 +540,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                 ]
             , viewTab
             , hr [ class "uk-divider-icon" ] []
-            , Tags.viewTagCloud (\tag -> taggingAction (Just tag)) tags
+            , Tags.viewTagCloud (\tag -> taggingAction tag) tags
             ]
 
 
