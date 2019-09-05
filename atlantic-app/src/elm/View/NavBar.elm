@@ -1,6 +1,6 @@
-module View.NavBar exposing (NavItem(..), view, viewIconNav)
+module View.NavBar exposing (NavItem(..), viewIconNav)
 
-import Html exposing (a, div, li, nav, text, ul)
+import Html exposing (button, div, li, nav, text, ul)
 import Html.Attributes exposing (attribute, class, href)
 import Html.Events exposing (onClick)
 
@@ -21,7 +21,7 @@ type NavItem
 viewIconNavItem : List (Html.Attribute a) -> a -> Html.Html a
 viewIconNavItem attr msg =
     li []
-        [ a (attr ++ [ onClick msg, href "javascript:void(0);", class "uk-icon" ])
+        [ button (attr ++ [ onClick msg, class "uk-icon" ])
             []
         ]
 
@@ -46,28 +46,6 @@ mapActionToElement ( action, msg, attr ) =
 
         Disabled action_ ->
             mapActionToElement ( action_, msg, [ class "ui-disabled uk-disabled" ] )
-
-
-view : Html.Html msg
-view =
-    nav [ class "uk-navbar-container", attribute "uk-navbar" "" ]
-        [ div [ class "uk-navbar-left" ]
-            [ ul [ class "uk-navbar-nav" ]
-                [ li [ class "uk-active" ]
-                    [ a [ href "" ]
-                        []
-                    ]
-                , li [ class "uk-parent" ]
-                    [ a [ href "" ]
-                        [ text "Test" ]
-                    ]
-                , li []
-                    [ a [ href "" ]
-                        [ text "Test" ]
-                    ]
-                ]
-            ]
-        ]
 
 
 viewIconNav : List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg

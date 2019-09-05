@@ -38,11 +38,11 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : Data.Table.TableDataTagged -> msg -> Html msg
-viewWithTagData { tag, headers, rows } exportAction =
+viewWithTagData : msg -> Data.Table.TableDataTagged -> Html msg
+viewWithTagData exportAction { tag, headers, rows } =
     let
         plainPreparedRows =
-            List.map (prependCellToRow tag) rows |> flattenRows
+            rows |> flattenRows
     in
     div []
         [ p

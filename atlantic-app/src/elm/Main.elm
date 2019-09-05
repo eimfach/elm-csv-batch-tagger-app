@@ -7,8 +7,9 @@ import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
 import Data.Structure as Structure
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
 import Dict exposing (Dict)
+import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
 import Html.Events exposing (on, onClick, onInput)
@@ -170,6 +171,7 @@ type Msg
     | OpenModalInfo Data.Modal.Title HtmlNode Msg
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
+    | TableDownload TableDataTagged
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -346,6 +348,24 @@ update msg model =
                                     Debug.log "nothing changed" ( model.tableData, model.tableDataTagged )
                     in
                     ( { model | tableData = newHistoryData, tableDataTagged = newHistoryDataTagged }, Cmd.none )
+
+        TableDownload { tag, headers, rows } ->
+            {- expected that each row has the tag name prepended -}
+            let
+                preparedHeaders =
+                    setCSVSemicolonsInList ("Tag" :: headers)
+
+                preparedRows =
+                    List.map setCSVSemicolonsInList <| flattenRows rows
+
+                theTable =
+                    preparedHeaders
+                        :: preparedRows
+
+                theCsvString =
+                    List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
+            in
+            ( model, Download.string (tag ++ "-table.csv") "text/csv" theCsvString )
 
 
 openModalInfo :
@@ -570,16 +590,18 @@ viewTaggingIconNav ( history1, history2 ) =
 
 
 viewMappedRecordsPanel : List String -> List TableDataTagged -> Html Msg
-viewMappedRecordsPanel headers someTables =
+viewMappedRecordsPanel headers_ someTables =
     if List.isEmpty someTables then
         text ""
 
     else
         let
-            rows =
-                someTables
-                    |> List.map Table.viewWithTagData
-                    |> List.map (\viewWithTagData -> viewWithTagData NoOp)
+            preparedRows =
+                List.map (\{ tag, headers, rows } -> { tag = tag, headers = headers, rows = List.map (prependCellToRow tag) rows }) someTables
+
+            rowsViews =
+                preparedRows
+                    |> List.map (\tableDataTagged -> Table.viewWithTagData (TableDownload tableDataTagged) tableDataTagged)
         in
         div []
             ([ h3
@@ -589,7 +611,7 @@ viewMappedRecordsPanel headers someTables =
                     [ text "Tagged records" ]
                 ]
              ]
-                ++ rows
+                ++ rowsViews
             )
 
 
@@ -666,7 +688,7 @@ createTableDataFromCsvData contents =
                 |> Csv.parseWith ";"
 
         recordsConvertedToRows =
-            List.map Row csv.records
+            List.map Row <| csv.records
     in
     TableData csv.headers recordsConvertedToRows
 
@@ -679,3 +701,32 @@ maybeToBool aMaybe =
 
         Nothing ->
             False
+
+
+setCSVSemicolonsInList : List String -> List String
+setCSVSemicolonsInList aList =
+    let
+        listLengh =
+            List.length aList
+    in
+    List.indexedMap
+        (\index val ->
+            let
+                cleanedVal =
+                    if val == "\"" then
+                        ""
+
+                    else
+                        val
+            in
+            if index /= 0 then
+                if index == listLengh - 1 then
+                    ";" ++ cleanedVal ++ "\n"
+
+                else
+                    ";" ++ cleanedVal
+
+            else
+                cleanedVal
+        )
+        aList
