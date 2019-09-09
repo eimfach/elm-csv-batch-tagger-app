@@ -479,7 +479,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                                                             Just searchPattern ->
                                                                 let
                                                                     regexPattern =
-                                                                        Regex.fromString searchPattern
+                                                                        Regex.fromStringWith { caseInsensitive = True, multiline = False } searchPattern
                                                                             |> Maybe.withDefault Regex.never
                                                                 in
                                                                 if Regex.contains regexPattern cell then
