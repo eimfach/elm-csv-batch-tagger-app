@@ -23,7 +23,6 @@ import Section.FileUpload
 import Section.ManageTags
 import Set exposing (Set)
 import Unique exposing (Unique)
-import View.Autocomplete as Autocomplete
 import View.Modal as Modal
 import View.NavBar as NavBar
 import View.Table as Table

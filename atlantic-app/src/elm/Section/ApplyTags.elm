@@ -49,13 +49,16 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
         {- TODO: implement autocomplete for each column -}
         autoTagger =
             columns
-                |> List.map
-                    (\column ->
+                |> List.indexedMap
+                    (\index column ->
                         let
                             val =
                                 Maybe.withDefault "" <| Dict.get column batchTaggingOptions
+
+                            options =
+                                Set.fromList <| getColumnData index records
                         in
-                        viewBatchTaggingInput column val Set.empty (inputAction column)
+                        viewBatchTaggingInput column ("autoTagger" ++ String.fromInt index) val options (inputAction column)
                     )
     in
     if List.isEmpty records then
@@ -70,11 +73,16 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
             ]
 
 
-viewBatchTaggingInput : String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
-viewBatchTaggingInput labelText val options action =
+viewBatchTaggingInput : String -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput labelText idVal val options action =
     View.Autocomplete.view
         labelText
         val
-        "autoTagger"
+        idVal
         [ placeholder "Select a keyword (Plain or Regex)", onInput action ]
         options
+
+
+getColumnData : Int -> List Row -> List String
+getColumnData columnIndex records =
+    List.foldl (\row newList -> [ Maybe.withDefault "" <| ListExtra.getAt columnIndex row.cells ] ++ newList) [] records
