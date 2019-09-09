@@ -101,7 +101,7 @@ if (TARGET_ENV === 'production') {
         {
           test: /\.elm$/,
           exclude: [/elm-stuff/, /node_modules/],
-          loader: 'elm-webpack'
+          loader: 'elm-webpack?optimize=true'
         },
         {
           test: /\.(css|less)$/,

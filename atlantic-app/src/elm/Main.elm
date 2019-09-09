@@ -344,7 +344,9 @@ update msg model =
                                     ( restTableD, restTableDT )
 
                                 _ ->
-                                    Debug.log "nothing changed" ( model.tableData, model.tableDataTagged )
+                                    ( model.tableData, model.tableDataTagged )
+
+                        {- Debug.log "nothing changed" ( model.tableData, model.tableDataTagged ) -}
                     in
                     ( { model | tableData = newHistoryData, tableDataTagged = newHistoryDataTagged }, Cmd.none )
 
