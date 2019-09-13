@@ -46,7 +46,6 @@ viewBatchTaggingTab batchTaggingOptions inputAction columns records =
 viewBatchTagging : Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
 viewBatchTagging batchTaggingOptions inputAction columns records =
     let
-        {- TODO: implement autocomplete for each column -}
         autoTagger =
             columns
                 |> List.indexedMap
@@ -55,6 +54,7 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
                             val =
                                 Maybe.withDefault "" <| Dict.get column batchTaggingOptions
 
+                            -- create data list for autocomplete
                             options =
                                 Set.fromList <| getColumnData index records
                         in

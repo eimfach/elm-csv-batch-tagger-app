@@ -95,7 +95,7 @@ init flags =
                     Set.fromList val
 
                 Err _ ->
-                    Set.fromList []
+                    Set.fromList [ "finance", "household", "expenses" ]
 
         addTagInputBuffer =
             Result.withDefault "" <| Decode.decodeValue (Decode.field "addTagInputBuffer" Decode.string) flags
