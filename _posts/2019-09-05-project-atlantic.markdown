@@ -8,11 +8,11 @@ date: '2018-08-29 10:26'
 
 ### Ideas & Todos
 
-- [] Add tag on enter
-- [] Add redo functionality with list of Msg's
-- [] Add session support ?
+- [ ] Add tag on enter
+- [ ] Add redo functionality with list of Msg's
+- [ ] Add session support ?
 
 - [x] Autocomplete
 - [x] Case insensitive search
-- [] Drag and Drop
-- [] Sort tables
+- [ ] Drag and Drop
+- [ ] Sort tables
