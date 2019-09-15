@@ -1,4 +1,4 @@
-module Data.Modal exposing (Button, State, Title, Visibility(..))
+module Data.Modal exposing (Button, DisplayProperties(..), State, Title, Visibility(..))
 
 import Data.Button
 import Html exposing (Html)
@@ -15,7 +15,7 @@ type alias State msg =
     {- TODO: don't do this .. adding html node into model, maybe replace with union type -}
     , buttons : List (Button msg)
     , title : Title
-    , showFull : Bool
+    , displayProperties : DisplayProperties
     }
 
 
@@ -26,3 +26,8 @@ type alias Title =
 type Visibility
     = NotVisible
     | Visible
+
+
+type DisplayProperties
+    = RegularView
+    | Fullscreen

@@ -1,8 +1,10 @@
 module View.Table exposing (view, viewSingle, viewWithTagData)
 
+import Data.Alias
 import Data.Table exposing (flattenRows, prependCellToRow)
 import Html exposing (Html, div, h3, p, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class)
+import Html.Events exposing (onClick)
 import View.NavBar as NavBar
 
 
@@ -19,11 +21,11 @@ viewSingle cellAttr headers record =
         ]
 
 
-view : List String -> List (List (Html msg)) -> Html msg
+view : List ( String, msg ) -> List (List (Html msg)) -> Html msg
 view headers rows =
-    table [ class "uk-table uk-table-responsive uk-table-divider" ]
+    table [ class "uk-table uk-table-responsive uk-table-divider uk-table-middle uk-table-small" ]
         [ thead []
-            [ viewRow th [] <| List.map text headers ]
+            [ viewRow th [] <| List.map (\( column, msg ) -> span [ onClick msg ] [ text column ]) headers ]
         , tbody []
             (List.map (\row -> viewRow td [] row) rows)
         ]
@@ -38,7 +40,7 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : msg -> Data.Table.TableDataTagged -> Html msg
+viewWithTagData : msg -> { tag : Data.Alias.Tag, headers : List ( Data.Alias.ColumnHeadingName, msg ), rows : List Data.Table.Row } -> Html msg
 viewWithTagData exportAction { tag, headers, rows } =
     let
         plainPreparedRows =
@@ -56,6 +58,6 @@ viewWithTagData exportAction { tag, headers, rows } =
             , NavBar.viewIconNav [ ( NavBar.Export, exportAction, [] ) ]
             ]
         , view
-            ("Tag" :: headers)
+            headers
             plainPreparedRows
         ]

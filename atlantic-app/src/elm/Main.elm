@@ -152,7 +152,7 @@ init flags =
       , batchTaggingOptions = batchTaggingOptions
       , dataFormats = dataFormats
       , optionTagging = BatchTagging
-      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "", showFull = True }
+      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "", displayProperties = Data.Modal.Fullscreen }
       }
     , Cmd.none
     )
@@ -261,6 +261,7 @@ type Msg
     | TableDownload TableDataTagged
     | SetDataFormatForColumn ColumnHeadingName EncodedDataFormat
     | SelectMatchingRecords (List ColumnHeadingName) Tag (List Row)
+    | SortTaggedTable Tag ColumnHeadingName
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -426,7 +427,7 @@ update msg model =
             ( updateShowModalInfo title model content cancelMsg, Cmd.none )
 
         OpenModal title content saveMsg cancelMsg ->
-            ( updateShowModal True title model content saveMsg cancelMsg, Cmd.none )
+            ( updateShowModal Data.Modal.Fullscreen title model content saveMsg cancelMsg, Cmd.none )
 
         CloseModal ->
             ( updateCloseModal model, Cmd.none )
@@ -521,14 +522,17 @@ update msg model =
 
             else
                 ( updateShowModal
-                    True
+                    Data.Modal.Fullscreen
                     modelTitleText
                     model
-                    (Table.view headers <| List.map (List.map text) plainMatchedRecords)
+                    (Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainMatchedRecords)
                     (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
                     CloseModal
                 , Cmd.none
                 )
+
+        SortTaggedTable tag column ->
+            ( updateShowModalInfo "Sorting Tables" model (text "SortTaggedTable was triggered") CloseModal, Cmd.none )
 
 
 updateDataFormat : ColumnHeadingName -> String -> Model -> Model
@@ -574,23 +578,23 @@ updateShowModalInfo title model content cancelMsg =
             [ ( Data.Button.Secondary, cancelMsg, "Ok" )
             ]
     in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title False }
+    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title Data.Modal.RegularView }
 
 
-updateShowModal : Bool -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
-updateShowModal showFull title model content saveMsg cancelMsg =
+updateShowModal : Data.Modal.DisplayProperties -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
+updateShowModal displayProperties title model content saveMsg cancelMsg =
     let
         buttons =
             [ ( Data.Button.Secondary, cancelMsg, "Cancel" )
             , ( Data.Button.Secondary, saveMsg, "Save" )
             ]
     in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title showFull }
+    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title displayProperties }
 
 
 updateCloseModal : Model -> Model
 updateCloseModal model =
-    { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title model.showModal.showFull }
+    { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title model.showModal.displayProperties }
 
 
 
@@ -623,7 +627,7 @@ view model =
     in
     div [ id "container", class "uk-container" ]
         [ Modal.view
-            model.showModal.showFull
+            model.showModal.displayProperties
             CloseModal
             model.showModal.visible
             model.showModal.title
@@ -732,12 +736,28 @@ viewMappedRecordsPanel headers_ someTables =
 
     else
         let
+            preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row }
             preparedRows =
-                List.map (\{ tag, headers, rows } -> { tag = tag, headers = headers, rows = List.map (prependCellToRow tag) rows }) someTables
+                List.map
+                    (\{ tag, headers, rows } ->
+                        let
+                            headersWithSortMsg =
+                                List.map (\column -> ( column, SortTaggedTable tag column )) headers
+                                    |> List.append [ ( "Tag", NoOp ) ]
+                        in
+                        { tag = tag, headers = headersWithSortMsg, rows = List.map (prependCellToRow tag) rows }
+                    )
+                    someTables
 
             rowsViews =
                 preparedRows
-                    |> List.map (\tableDataTagged -> Table.viewWithTagData (TableDownload tableDataTagged) tableDataTagged)
+                    |> List.map
+                        (\tableDataTagged ->
+                            Table.viewWithTagData
+                                -- use original header list for Tabledownload, since we modified it before
+                                (TableDownload <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows)
+                                tableDataTagged
+                        )
         in
         div []
             ([ h3
@@ -751,7 +771,7 @@ viewMappedRecordsPanel headers_ someTables =
             )
 
 
-viewPlainRecords : String -> List String -> List Row -> Html msg
+viewPlainRecords : String -> List String -> List Row -> Html Msg
 viewPlainRecords descr headers rows =
     if List.isEmpty rows then
         text ""
@@ -762,7 +782,7 @@ viewPlainRecords descr headers rows =
                 [ class "uk-heading-line uk-text-center" ]
                 [ span [] [ text descr ]
                 ]
-            , Table.view headers <| List.map (List.map text) <| flattenRows rows
+            , Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) <| flattenRows rows
             ]
 
 
