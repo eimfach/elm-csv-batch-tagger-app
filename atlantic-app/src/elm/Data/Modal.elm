@@ -15,6 +15,7 @@ type alias State msg =
     {- TODO: don't do this .. adding html node into model, maybe replace with union type -}
     , buttons : List (Button msg)
     , title : Title
+    , showFull : Bool
     }
 
 

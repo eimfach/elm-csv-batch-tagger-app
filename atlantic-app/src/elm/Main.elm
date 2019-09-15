@@ -10,7 +10,7 @@ import Data.Structure as Structure
 import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
-import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
+import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
 import Html.Events exposing (on, onClick, onInput)
 import Json.Decode as Decode
@@ -68,6 +68,19 @@ type alias HtmlNode =
     Html.Html Msg
 
 
+type DataFormat
+    = Text
+    | Float
+    | Integer
+    | Date
+    | Currency Currency
+
+
+type Currency
+    = Dollar Float
+    | Euro Float
+
+
 
 -- MODEL
 
@@ -101,7 +114,10 @@ init flags =
             Result.withDefault "" <| Decode.decodeValue (Decode.field "addTagInputBuffer" Decode.string) flags
 
         addTagInputError =
-            Result.withDefault ( "", False ) <| Decode.decodeValue (Decode.field "addTagInputError" (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.bool))) flags
+            Result.withDefault ( "", False ) <|
+                Decode.decodeValue
+                    (Decode.field "addTagInputError" (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.bool)))
+                    flags
 
         fileUploadPointerId =
             Result.withDefault "csv-upload" <| Decode.decodeValue (Decode.field "fileUploadPointerId" Decode.string) flags
@@ -127,7 +143,7 @@ init flags =
       , tableDataTagged = tableDataTagged
       , batchTaggingOptions = batchTaggingOptions
       , optionTagging = BatchTagging
-      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "" }
+      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "", showFull = True }
       }
     , Cmd.none
     )
@@ -171,6 +187,7 @@ type Msg
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
     | TableDownload TableDataTagged
+    | SetDataFormatForColumn String
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -226,20 +243,27 @@ update msg model =
             case decodeFileContents fileData.contents of
                 Ok decodedData ->
                     let
-                        tableData =
-                            createTableDataFromCsvData decodedData
+                        newModel =
+                            case parseCsvString ';' decodedData of
+                                Ok csv ->
+                                    createTableDataFromCsv csv model |> createChooseDataFormatDialog csv.headers
+
+                                Err _ ->
+                                    case parseCsvString ',' decodedData of
+                                        Ok csv ->
+                                            createTableDataFromCsv csv model |> createChooseDataFormatDialog csv.headers
+
+                                        Err err ->
+                                            openModalInfo "Error" model (text "There was an error parsing your file. The contents of your file are not supported.") CloseModal
                     in
-                    ( { model
-                        | file = Just fileData
-                        , tableData = [ tableData ]
-                      }
+                    ( newModel
                     , Cmd.none
                     )
 
                 Err error ->
                     let
                         dialogContent =
-                            text ("There was an error parsing your file : " ++ error)
+                            text ("There was an error reading your file : " ++ error)
                     in
                     ( openModalInfo "Error" model dialogContent CloseModal, Cmd.none )
 
@@ -329,7 +353,7 @@ update msg model =
             ( openModalInfo title model content cancelMsg, Cmd.none )
 
         OpenModal title content saveMsg cancelMsg ->
-            ( openModal title model content saveMsg cancelMsg, Cmd.none )
+            ( openModal True title model content saveMsg cancelMsg, Cmd.none )
 
         CloseModal ->
             ( closeModal model, Cmd.none )
@@ -368,6 +392,9 @@ update msg model =
             in
             ( model, Download.string (tag ++ "-table.csv") "text/csv" theCsvString )
 
+        SetDataFormatForColumn formatStr ->
+            ( model, Cmd.none )
+
 
 openModalInfo :
     Data.Modal.Title
@@ -381,23 +408,23 @@ openModalInfo title model content cancelMsg =
             [ ( Data.Button.Secondary, cancelMsg, "Ok" )
             ]
     in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title }
+    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title False }
 
 
-openModal : Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
-openModal title model content saveMsg cancelMsg =
+openModal : Bool -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
+openModal showFull title model content saveMsg cancelMsg =
     let
         buttons =
             [ ( Data.Button.Secondary, cancelMsg, "Cancel" )
             , ( Data.Button.Secondary, saveMsg, "Save" )
             ]
     in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title }
+    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title showFull }
 
 
 closeModal : Model -> Model
 closeModal model =
-    { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title }
+    { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title model.showModal.showFull }
 
 
 
@@ -430,6 +457,7 @@ view model =
     in
     div [ id "container", class "uk-container" ]
         [ Modal.view
+            model.showModal.showFull
             CloseModal
             model.showModal.visible
             model.showModal.title
@@ -517,7 +545,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                     else
                         OpenModal
                             modelTitleText
-                            (Table.view headers plainMatchedRecords)
+                            (Table.view headers <| List.map (List.map text) plainMatchedRecords)
                             (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
                             CloseModal
 
@@ -627,16 +655,12 @@ viewPlainRecords descr headers rows =
                 [ class "uk-heading-line uk-text-center" ]
                 [ span [] [ text descr ]
                 ]
-            , Table.view headers (flattenRows rows)
+            , Table.view headers <| List.map (List.map text) <| flattenRows rows
             ]
 
 
 mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { cells : List ( ColumnHeadingName, Cell ) }
 mapRowCellsToHaveColumns headers row =
-    let
-        newCells =
-            List.map2 Tuple.pair headers row.cells
-    in
     { cells = List.map2 Tuple.pair headers row.cells }
 
 
@@ -681,17 +705,44 @@ rowPlain recordList =
     List.map (\record -> record.cells) recordList
 
 
-createTableDataFromCsvData : String -> TableData
-createTableDataFromCsvData contents =
-    let
-        csv =
-            contents
-                |> Csv.parseWith ";"
+parseCsvString separator contents =
+    contents
+        |> Csv.parseWith separator
 
+
+createChooseDataFormatDialog : List String -> Model -> Model
+createChooseDataFormatDialog headers model =
+    let
+        -- TODO: Add dropdowns for datatype
+        selectDataformat =
+            headers
+                |> List.map
+                    (\column ->
+                        select [ onInput SetDataFormatForColumn ]
+                            [ option [] [ text "Text" ]
+                            , option [] [ text "Float" ]
+                            , option [] [ text "Integer" ]
+                            , option [] [ text "Data" ]
+                            , option [] [ text "Currency" ]
+                            ]
+                    )
+
+        dataFormatModalContent =
+            div []
+                [ h4 [ class "uk-text-emphasis" ] [ text "Can you tell me the dataformats of each column of your table ?" ]
+                , Table.viewSingle [] headers selectDataformat
+                ]
+    in
+    openModalInfo "Choose Dataformats" model dataFormatModalContent CloseModal
+
+
+createTableDataFromCsv : Csv.Csv -> Model -> Model
+createTableDataFromCsv csv model =
+    let
         recordsConvertedToRows =
             List.map Row <| csv.records
     in
-    TableData csv.headers recordsConvertedToRows
+    { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
 
 
 maybeToBool : Maybe a -> Bool

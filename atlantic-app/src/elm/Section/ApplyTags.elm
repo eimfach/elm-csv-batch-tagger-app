@@ -24,8 +24,8 @@ viewManualTaggingTab columns records =
             ]
         , View.Table.viewSingle
             []
-            records
             columns
+            (List.map text records)
         ]
 
 
