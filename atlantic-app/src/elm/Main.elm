@@ -68,6 +68,10 @@ type alias HtmlNode =
     Html.Html Msg
 
 
+type alias EncodedDataFormat =
+    String
+
+
 type DataFormat
     = Text
     | Float
@@ -77,8 +81,8 @@ type DataFormat
 
 
 type Currency
-    = Dollar Float
-    | Euro Float
+    = Dollar
+    | Euro
 
 
 
@@ -94,6 +98,7 @@ type alias Model =
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
+    , dataFormats : Dict ColumnHeadingName DataFormat
     , optionTagging : TaggingOption
     , showModal : Data.Modal.State Msg
     }
@@ -133,6 +138,9 @@ init flags =
 
         batchTaggingOptions =
             Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "batchTaggingOptions" (Decode.dict Decode.string)) flags
+
+        dataFormats =
+            Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "dataFormats" (Decode.dict dataFormat)) flags
     in
     ( { tags = tags
       , addTagInputBuffer = addTagInputBuffer
@@ -142,6 +150,7 @@ init flags =
       , tableData = tableData
       , tableDataTagged = tableDataTagged
       , batchTaggingOptions = batchTaggingOptions
+      , dataFormats = dataFormats
       , optionTagging = BatchTagging
       , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "", showFull = True }
       }
@@ -165,7 +174,70 @@ encodeModel model =
         , ( "tableData", Encode.list encodeTableData model.tableData )
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
+        , ( "dataFormats", Encode.dict identity encodeDataFormat model.dataFormats )
         ]
+
+
+encodeDataFormat : DataFormat -> Encode.Value
+encodeDataFormat dataFormat_ =
+    case dataFormat_ of
+        Text ->
+            Encode.string "text"
+
+        Float ->
+            Encode.string "float"
+
+        Integer ->
+            Encode.string "integer"
+
+        Date ->
+            Encode.string "date"
+
+        Currency Euro ->
+            Encode.string "currency-euro"
+
+        Currency Dollar ->
+            Encode.string "currency-dollar"
+
+
+dataFormat : Decode.Decoder DataFormat
+dataFormat =
+    Decode.string |> Decode.andThen dataFormatDecoder
+
+
+dataFormatDecoder : String -> Decode.Decoder DataFormat
+dataFormatDecoder encodedFormat =
+    case parseDataFormat encodedFormat of
+        Ok dataFormat_ ->
+            Decode.succeed dataFormat_
+
+        Err err ->
+            Decode.fail err
+
+
+parseDataFormat : String -> Result String DataFormat
+parseDataFormat encodedFormat =
+    case encodedFormat of
+        "text" ->
+            Ok Text
+
+        "float" ->
+            Ok Float
+
+        "integer" ->
+            Ok Integer
+
+        "date" ->
+            Ok Date
+
+        "currency-euro" ->
+            Ok (Currency Euro)
+
+        "currency-dollar" ->
+            Ok (Currency Dollar)
+
+        _ ->
+            Err "Invalid DataFormat Encoding"
 
 
 
@@ -187,7 +259,8 @@ type Msg
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
     | TableDownload TableDataTagged
-    | SetDataFormatForColumn String
+    | SetDataFormatForColumn ColumnHeadingName EncodedDataFormat
+    | SelectMatchingRecords (List ColumnHeadingName) Tag (List Row)
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -246,15 +319,15 @@ update msg model =
                         newModel =
                             case parseCsvString ';' decodedData of
                                 Ok csv ->
-                                    createTableDataFromCsv csv model |> createChooseDataFormatDialog csv.headers
+                                    createTableDataFromCsv csv model |> updateShowModalChooseDataFormat csv.headers
 
                                 Err _ ->
                                     case parseCsvString ',' decodedData of
                                         Ok csv ->
-                                            createTableDataFromCsv csv model |> createChooseDataFormatDialog csv.headers
+                                            createTableDataFromCsv csv model |> updateShowModalChooseDataFormat csv.headers
 
                                         Err err ->
-                                            openModalInfo "Error" model (text "There was an error parsing your file. The contents of your file are not supported.") CloseModal
+                                            updateShowModalInfo "Error" model (text "There was an error parsing your file. The contents of your file are not supported.") CloseModal
                     in
                     ( newModel
                     , Cmd.none
@@ -265,7 +338,7 @@ update msg model =
                         dialogContent =
                             text ("There was an error reading your file : " ++ error)
                     in
-                    ( openModalInfo "Error" model dialogContent CloseModal, Cmd.none )
+                    ( updateShowModalInfo "Error" model dialogContent CloseModal, Cmd.none )
 
         MapRecordToTag recordBucket theTag ->
             let
@@ -336,7 +409,7 @@ update msg model =
                                 , tableData = updatedTableDataOrigin :: model.tableData
                             }
                     in
-                    ( closeModal updatedModel, Cmd.none )
+                    ( updateCloseModal updatedModel, Cmd.none )
 
         SearchPatternInput columnKey searchPatternInput ->
             case String.isEmpty searchPatternInput of
@@ -350,13 +423,13 @@ update msg model =
             ( { model | optionTagging = opt }, Cmd.none )
 
         OpenModalInfo title content cancelMsg ->
-            ( openModalInfo title model content cancelMsg, Cmd.none )
+            ( updateShowModalInfo title model content cancelMsg, Cmd.none )
 
         OpenModal title content saveMsg cancelMsg ->
-            ( openModal True title model content saveMsg cancelMsg, Cmd.none )
+            ( updateShowModal True title model content saveMsg cancelMsg, Cmd.none )
 
         CloseModal ->
-            ( closeModal model, Cmd.none )
+            ( updateCloseModal model, Cmd.none )
 
         UndoMapRecordToTag undoStrategy ->
             case undoStrategy of
@@ -392,17 +465,110 @@ update msg model =
             in
             ( model, Download.string (tag ++ "-table.csv") "text/csv" theCsvString )
 
-        SetDataFormatForColumn formatStr ->
-            ( model, Cmd.none )
+        SetDataFormatForColumn column encodedFormat ->
+            let
+                modelWithDataFormat =
+                    updateDataFormat column encodedFormat model
+            in
+            ( modelWithDataFormat, Cmd.none )
+
+        SelectMatchingRecords headers tag rows ->
+            let
+                matchedRows =
+                    rows
+                        |> List.map
+                            (mapRowCellsToHaveColumns headers)
+                        |> List.filter
+                            (\row_ ->
+                                let
+                                    matchingCellCount =
+                                        List.foldr
+                                            (\( column, cell ) count ->
+                                                case Dict.get column model.batchTaggingOptions of
+                                                    Just searchPattern ->
+                                                        let
+                                                            regexPattern =
+                                                                Regex.fromStringWith { caseInsensitive = True, multiline = False } searchPattern
+                                                                    |> Maybe.withDefault Regex.never
+                                                        in
+                                                        if Regex.contains regexPattern cell then
+                                                            count + 1
+
+                                                        else
+                                                            count
+
+                                                    Nothing ->
+                                                        count
+                                            )
+                                            0
+                                            row_.cells
+                                in
+                                Dict.size model.batchTaggingOptions == matchingCellCount
+                            )
+
+                matchedRowsAsRowType =
+                    matchedRows
+                        |> List.map mapRowCellsToRemoveColumns
+
+                plainMatchedRecords =
+                    rowPlain matchedRowsAsRowType
+
+                modelTitleText =
+                    String.fromInt (List.length plainMatchedRecords) ++ " Records that will be tagged"
+            in
+            if List.isEmpty plainMatchedRecords then
+                ( updateShowModalInfo modelTitleText model (text "There were no matching records found") CloseModal, Cmd.none )
+
+            else
+                ( updateShowModal
+                    True
+                    modelTitleText
+                    model
+                    (Table.view headers <| List.map (List.map text) plainMatchedRecords)
+                    (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
+                    CloseModal
+                , Cmd.none
+                )
 
 
-openModalInfo :
-    Data.Modal.Title
-    -> Model
-    -> HtmlNode
-    -> Msg
-    -> Model
-openModalInfo title model content cancelMsg =
+updateDataFormat : ColumnHeadingName -> String -> Model -> Model
+updateDataFormat column encodedFormat model =
+    case parseDataFormat encodedFormat of
+        Ok format ->
+            { model | dataFormats = Dict.insert column format model.dataFormats }
+
+        Err err ->
+            updateShowModalInfo "Error" model (text err) CloseModal
+
+
+updateShowModalChooseDataFormat : List String -> Model -> Model
+updateShowModalChooseDataFormat headers model =
+    let
+        selectDataformat =
+            headers
+                |> List.map
+                    (\column ->
+                        select [ onInput (SetDataFormatForColumn column) ]
+                            [ option [ value "text" ] [ text "Text" ]
+                            , option [ value "float" ] [ text "Float" ]
+                            , option [ value "integer" ] [ text "Integer" ]
+                            , option [ value "date" ] [ text "Date" ]
+                            , option [ value "currency-euro" ] [ text "Currency Euro" ]
+                            , option [ value "currency-dollar" ] [ text "Currency Dollar" ]
+                            ]
+                    )
+
+        dataFormatModalContent =
+            div []
+                [ h4 [ class "uk-text-emphasis" ] [ text "Can you tell me the dataformats of each column of your table ?" ]
+                , Table.viewSingle [] headers selectDataformat
+                ]
+    in
+    updateShowModalInfo "Choose Dataformats" model dataFormatModalContent CloseModal
+
+
+updateShowModalInfo : Data.Modal.Title -> Model -> HtmlNode -> Msg -> Model
+updateShowModalInfo title model content cancelMsg =
     let
         buttons =
             [ ( Data.Button.Secondary, cancelMsg, "Ok" )
@@ -411,8 +577,8 @@ openModalInfo title model content cancelMsg =
     { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title False }
 
 
-openModal : Bool -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
-openModal showFull title model content saveMsg cancelMsg =
+updateShowModal : Bool -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
+updateShowModal showFull title model content saveMsg cancelMsg =
     let
         buttons =
             [ ( Data.Button.Secondary, cancelMsg, "Cancel" )
@@ -422,8 +588,8 @@ openModal showFull title model content saveMsg cancelMsg =
     { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title showFull }
 
 
-closeModal : Model -> Model
-closeModal model =
+updateCloseModal : Model -> Model
+updateCloseModal model =
     { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title model.showModal.showFull }
 
 
@@ -486,68 +652,13 @@ view model =
 viewTaggingSection : TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
 viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
     let
-        {--TODO: move parts of this to the update function as a standalone action ? --}
         taggingAction tag =
             case taggingOption of
                 SingleTagging ->
                     MapRecordToTag (Structure.Single row) tag
 
                 BatchTagging ->
-                    let
-                        matchedRows =
-                            rows
-                                |> List.map
-                                    (mapRowCellsToHaveColumns headers)
-                                |> List.filter
-                                    (\row_ ->
-                                        let
-                                            matchingCellCount =
-                                                List.foldr
-                                                    (\( column, cell ) count ->
-                                                        case Dict.get column batchTaggingOptions of
-                                                            Just searchPattern ->
-                                                                let
-                                                                    regexPattern =
-                                                                        Regex.fromStringWith { caseInsensitive = True, multiline = False } searchPattern
-                                                                            |> Maybe.withDefault Regex.never
-                                                                in
-                                                                if Regex.contains regexPattern cell then
-                                                                    count + 1
-
-                                                                else
-                                                                    count
-
-                                                            Nothing ->
-                                                                count
-                                                    )
-                                                    0
-                                                    row_.cells
-                                        in
-                                        Dict.size batchTaggingOptions == matchingCellCount
-                                    )
-
-                        matchedRowsAsRowType =
-                            matchedRows
-                                |> List.map mapRowCellsToRemoveColumns
-
-                        plainMatchedRecords =
-                            rowPlain matchedRowsAsRowType
-
-                        modelTitleText =
-                            String.fromInt (List.length plainMatchedRecords) ++ " Records that will be tagged"
-                    in
-                    if List.isEmpty plainMatchedRecords then
-                        OpenModalInfo
-                            modelTitleText
-                            (text "There were no matching records found")
-                            CloseModal
-
-                    else
-                        OpenModal
-                            modelTitleText
-                            (Table.view headers <| List.map (List.map text) plainMatchedRecords)
-                            (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
-                            CloseModal
+                    SelectMatchingRecords headers tag rows
 
         ( singleIsActiveTab, viewTab ) =
             case taggingOption of
@@ -558,39 +669,35 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                 BatchTagging ->
                     ( False, viewBatchTaggingTab batchTaggingOptions SearchPatternInput headers rows )
     in
-    if List.isEmpty row.cells then
-        text ""
-
-    else
-        div []
-            [ div [ class "uk-position-relative" ]
-                [ h3
-                    [ class "uk-heading-line uk-text-center" ]
-                    [ span [ class "uk-text-background uk-text-bold uk-text-large" ]
-                        [ text ("Apply tags (" ++ String.fromInt (List.length rows) ++ " left)")
-                        ]
-                    ]
-                , nav
-                ]
-            , div [ class "uk-width-1-1 uk-margin-large" ]
-                [ ul
-                    [ class "uk-child-width-expand", attribute "uk-tab" "" ]
-                    [ li
-                        [ onClick (SetTaggingOption SingleTagging)
-                        , classList [ ( "uk-active", singleIsActiveTab ) ]
-                        ]
-                        [ a [ href "#" ] [ text "Single Tagging" ] ]
-                    , li
-                        [ onClick (SetTaggingOption BatchTagging)
-                        , classList [ ( "uk-active", not singleIsActiveTab ) ]
-                        ]
-                        [ a [ href "#" ] [ text "Batch Tagging" ] ]
+    div []
+        [ div [ class "uk-position-relative" ]
+            [ h3
+                [ class "uk-heading-line uk-text-center" ]
+                [ span [ class "uk-text-background uk-text-bold uk-text-large" ]
+                    [ text ("Apply tags (" ++ String.fromInt (List.length rows) ++ " left)")
                     ]
                 ]
-            , viewTab
-            , hr [ class "uk-divider-icon" ] []
-            , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+            , nav
             ]
+        , div [ class "uk-width-1-1 uk-margin-large" ]
+            [ ul
+                [ class "uk-child-width-expand", attribute "uk-tab" "" ]
+                [ li
+                    [ onClick (SetTaggingOption SingleTagging)
+                    , classList [ ( "uk-active", singleIsActiveTab ) ]
+                    ]
+                    [ a [ href "#" ] [ text "Single Tagging" ] ]
+                , li
+                    [ onClick (SetTaggingOption BatchTagging)
+                    , classList [ ( "uk-active", not singleIsActiveTab ) ]
+                    ]
+                    [ a [ href "#" ] [ text "Batch Tagging" ] ]
+                ]
+            ]
+        , viewTab
+        , hr [ class "uk-divider-icon" ] []
+        , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+        ]
 
 
 viewTaggingIconNav : ( List a, List a1 ) -> Html Msg
@@ -708,32 +815,6 @@ rowPlain recordList =
 parseCsvString separator contents =
     contents
         |> Csv.parseWith separator
-
-
-createChooseDataFormatDialog : List String -> Model -> Model
-createChooseDataFormatDialog headers model =
-    let
-        -- TODO: Add dropdowns for datatype
-        selectDataformat =
-            headers
-                |> List.map
-                    (\column ->
-                        select [ onInput SetDataFormatForColumn ]
-                            [ option [] [ text "Text" ]
-                            , option [] [ text "Float" ]
-                            , option [] [ text "Integer" ]
-                            , option [] [ text "Data" ]
-                            , option [] [ text "Currency" ]
-                            ]
-                    )
-
-        dataFormatModalContent =
-            div []
-                [ h4 [ class "uk-text-emphasis" ] [ text "Can you tell me the dataformats of each column of your table ?" ]
-                , Table.viewSingle [] headers selectDataformat
-                ]
-    in
-    openModalInfo "Choose Dataformats" model dataFormatModalContent CloseModal
 
 
 createTableDataFromCsv : Csv.Csv -> Model -> Model
