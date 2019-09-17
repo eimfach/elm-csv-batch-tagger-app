@@ -14,33 +14,47 @@ import View.Table
 
 viewManualTaggingTab : List ColumnHeadingName -> List String -> Html.Html msg
 viewManualTaggingTab columns records =
-    div []
-        [ p
-            [ class "uk-text-meta" ]
-            [ span
-                [ class "uk-label uk-text-small" ]
-                [ text "NOTE" ]
-            , text "  Records are processed in order provided by your file."
-            ]
-        , View.Table.viewSingle
-            []
-            columns
-            (List.map text records)
-        ]
+    let
+        content =
+            if List.isEmpty records then
+                [ text "There are no records yet to choose from, please select a file." ]
+
+            else
+                [ p
+                    [ class "uk-text-meta" ]
+                    [ span
+                        [ class "uk-label uk-text-small" ]
+                        [ text "NOTE" ]
+                    , text "  Records are processed in order provided by your file."
+                    ]
+                , View.Table.viewSingle
+                    []
+                    columns
+                    (List.map text records)
+                ]
+    in
+    div [] content
 
 
 viewBatchTaggingTab : Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
 viewBatchTaggingTab batchTaggingOptions inputAction columns records =
-    div []
-        [ p
-            [ class "uk-text-meta" ]
-            [ span
-                [ class "uk-label uk-text-small" ]
-                [ text "NOTE" ]
-            , text "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
-            ]
-        , viewBatchTagging batchTaggingOptions inputAction columns records
-        ]
+    let
+        content =
+            if List.isEmpty records then
+                [ text "There are no records yet to choose from, please select a file." ]
+
+            else
+                [ p
+                    [ class "uk-text-meta" ]
+                    [ span
+                        [ class "uk-label uk-text-small" ]
+                        [ text "NOTE" ]
+                    , text "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
+                    ]
+                , viewBatchTagging batchTaggingOptions inputAction columns records
+                ]
+    in
+    div [] content
 
 
 viewBatchTagging : Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg

@@ -1,8 +1,7 @@
 port module Main exposing (main)
 
-import Base64
 import Browser
-import Csv exposing (Csv)
+import Csv
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
@@ -16,12 +15,11 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
 import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
-import Regex exposing (Regex)
+import Regex
 import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 import Section.FileUpload
 import Section.ManageTags
 import Set exposing (Set)
-import Unique exposing (Unique)
 import View.Modal as Modal
 import View.NavBar as NavBar
 import View.Table as Table
@@ -269,6 +267,7 @@ type Msg
     | SetDataFormatForColumn ColumnHeadingName EncodedDataFormat
     | SelectMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
+    | ChooseDataFormat
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -572,6 +571,14 @@ update msg model =
                 _ ->
                     ( updateShowModalInfo "Sorting Tables" model (text "TableData lookup failed.") CloseModal, Cmd.none )
 
+        ChooseDataFormat ->
+            case List.head model.tableData of
+                Just { headers } ->
+                    ( updateShowModalChooseDataFormat headers model, Cmd.none )
+
+                Nothing ->
+                    ( updateShowModalInfo "Error" model (text "Please select a file to work with first. Your file may be empty.") CloseModal, Cmd.none )
+
 
 updateDataFormat : ColumnHeadingName -> String -> Model -> Model
 updateDataFormat column encodedFormat model =
@@ -590,7 +597,7 @@ updateShowModalChooseDataFormat headers model =
             headers
                 |> List.map
                     (\column ->
-                        select [ onInput (SetDataFormatForColumn column) ]
+                        select [ onInput (SetDataFormatForColumn column), class "uk-select" ]
                             [ option [ value "text" ] [ text "Text" ]
                             , option [ value "float" ] [ text "Float" ]
                             , option [ value "integer" ] [ text "Integer" ]
@@ -674,6 +681,8 @@ view model =
         , div
             []
             [ div []
+                [ button [ class "uk-button uk-button-link", onClick ChooseDataFormat ] [ text "I want to reset my dataformats" ] ]
+            , div []
                 [ Section.FileUpload.view (maybeToBool model.file) FileSelected ]
             , div []
                 [ Section.ManageTags.view model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
@@ -737,8 +746,9 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
                 ]
             ]
         , viewTab
-        , hr [ class "uk-divider-icon" ] []
+        , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text "Select a tag to tag your records:" ] ]
         , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+        , hr [ class "uk-divider-icon" ] []
         ]
 
 
@@ -939,14 +949,15 @@ sort2dListByColumn index the2dList =
 
 compareTwoListsByIndex : Int -> List comparable -> List comparable -> Order
 compareTwoListsByIndex index firstList lastList =
-    case ListExtra.getAt index firstList of
-        Just item ->
-            case ListExtra.getAt index lastList of
-                Just lastItem ->
-                    compare item lastItem
+    case ( ListExtra.getAt index firstList, ListExtra.getAt index lastList ) of
+        ( Just firstItem, Just nextItem ) ->
+            compare firstItem nextItem
 
-                Nothing ->
-                    LT
+        ( Nothing, Just nextItem ) ->
+            GT
 
-        Nothing ->
-            EQ
+        ( Just firstItem, Nothing ) ->
+            LT
+
+        ( Nothing, Nothing ) ->
+            LT

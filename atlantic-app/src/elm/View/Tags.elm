@@ -42,7 +42,7 @@ viewTagButton : (Data.Alias.Tag -> msg) -> Data.Alias.Tag -> Html msg
 viewTagButton msg tag =
     Button.view
         (msg tag)
-        (Data.Button.Composed Data.Button.Default Data.Button.Small Data.Button.NoAlign)
+        (Data.Button.Composed Data.Button.Primary Data.Button.Medium Data.Button.NoAlign)
         Data.Button.NoActionType
         tag
 
