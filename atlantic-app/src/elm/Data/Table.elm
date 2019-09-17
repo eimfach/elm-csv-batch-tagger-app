@@ -3,7 +3,6 @@ module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDa
 import Data.Alias exposing (ColumnHeadingName, Tag)
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Unique exposing (Unique)
 
 
 type alias Cell =
@@ -30,6 +29,29 @@ type alias TableDataTagged =
     , headers : List ColumnHeadingName
     , rows : List Row
     }
+
+
+
+-- "↓" "↑"
+
+
+type SortOrder
+    = ASC
+    | DESC
+
+
+
+-- Type Sort
+-- if every column of a dataset is unordered, the whole dataset is unordered
+-- if one ore multiple columns are ordererd (asc or desc) by default the dataset is ordered without any further doings.
+-- It doesn't matter how much are ordered, the whole dataset goes as sorted but we can't say sorted by which column.
+-- as a result we need to know each columns sorting state and reflect that in the types signature
+
+
+type Sort
+    = Unsorted
+    | Sorted SortOrder
+    | Empty
 
 
 encodeTableDataTagged : TableDataTagged -> Encode.Value

@@ -6,7 +6,6 @@ import Csv exposing (Csv)
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
 import Data.Modal
-import Data.Structure as Structure
 import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
@@ -83,6 +82,14 @@ type DataFormat
 type Currency
     = Dollar
     | Euro
+
+
+{-| data of type Bucket can be either a single instance of type `a`,
+or a List of type `a`
+-}
+type Bucket a
+    = Single a
+    | Multiple (List a)
 
 
 
@@ -250,7 +257,7 @@ type Msg
     | CreateTagFromBuffer
     | FileSelected
     | ParseToCsv FileData
-    | MapRecordToTag (Structure.Bucket Row) Tag
+    | MapRecordToTag (Bucket Row) Tag
     | SearchPatternInput ColumnHeadingName SearchPattern
     | SetTaggingOption TaggingOption
     | NoOp
@@ -356,7 +363,7 @@ update msg model =
                     setTagInstance theTag commonHeaders tableDataTagged
             in
             case recordBucket of
-                Structure.Single aTableRow ->
+                Single aTableRow ->
                     let
                         updatedTaggedTableData =
                             tableDataTaggedAndPrepared
@@ -375,7 +382,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Structure.Multiple someTableRows ->
+                Multiple someTableRows ->
                     let
                         updatedTableDataTagged =
                             List.map
@@ -526,13 +533,44 @@ update msg model =
                     modelTitleText
                     model
                     (Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainMatchedRecords)
-                    (MapRecordToTag (Structure.Multiple matchedRowsAsRowType) tag)
+                    (MapRecordToTag (Multiple matchedRowsAsRowType) tag)
                     CloseModal
                 , Cmd.none
                 )
 
-        SortTaggedTable tag column ->
-            ( updateShowModalInfo "Sorting Tables" model (text "SortTaggedTable was triggered") CloseModal, Cmd.none )
+        SortTaggedTable theTagToLookup column ->
+            let
+                currentTableDataTaggedList =
+                    List.head model.tableDataTagged |> Maybe.withDefault []
+
+                currentTableDataTaggedByTag =
+                    ListExtra.find (.tag >> (==) theTagToLookup) currentTableDataTaggedList
+
+                indexCurrentTableDataTaggedByTag =
+                    ListExtra.findIndex (.tag >> (==) theTagToLookup) currentTableDataTaggedList
+            in
+            case ( currentTableDataTaggedByTag, indexCurrentTableDataTaggedByTag ) of
+                ( Just { tag, headers, rows }, Just theIndexCurrentTableDataTaggedByTag ) ->
+                    case ListExtra.elemIndex column headers of
+                        Just colummnIndex ->
+                            let
+                                sortedRows =
+                                    sort2dListByColumn colummnIndex (rowPlain rows)
+                                        |> List.map Row
+
+                                newTableDataTagged =
+                                    TableDataTagged tag headers sortedRows
+
+                                newTableDataTaggedList =
+                                    ListExtra.setAt theIndexCurrentTableDataTaggedByTag newTableDataTagged currentTableDataTaggedList
+                            in
+                            ( { model | tableDataTagged = List.append [ newTableDataTaggedList ] model.tableDataTagged }, Cmd.none )
+
+                        Nothing ->
+                            ( updateShowModalInfo "Sorting Tables" model (text "Index for TableData.Header lookup failed.") CloseModal, Cmd.none )
+
+                _ ->
+                    ( updateShowModalInfo "Sorting Tables" model (text "TableData lookup failed.") CloseModal, Cmd.none )
 
 
 updateDataFormat : ColumnHeadingName -> String -> Model -> Model
@@ -659,7 +697,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
         taggingAction tag =
             case taggingOption of
                 SingleTagging ->
-                    MapRecordToTag (Structure.Single row) tag
+                    MapRecordToTag (Single row) tag
 
                 BatchTagging ->
                     SelectMatchingRecords headers tag rows
@@ -786,6 +824,15 @@ viewPlainRecords descr headers rows =
             ]
 
 
+
+-- HELPERS
+
+
+getColumnData : Int -> List Row -> List String
+getColumnData columnIndex records =
+    List.foldl (\row newList -> [ Maybe.withDefault "" <| ListExtra.getAt columnIndex row.cells ] ++ newList) [] records
+
+
 mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { cells : List ( ColumnHeadingName, Cell ) }
 mapRowCellsToHaveColumns headers row =
     { cells = List.map2 Tuple.pair headers row.cells }
@@ -829,7 +876,7 @@ mapRowToTag aTag aRow { headers, tag, rows } =
 
 rowPlain : List Row -> List (List String)
 rowPlain recordList =
-    List.map (\record -> record.cells) recordList
+    List.map .cells recordList
 
 
 parseCsvString separator contents =
@@ -883,3 +930,23 @@ setCSVSemicolonsInList aList =
                 cleanedVal
         )
         aList
+
+
+sort2dListByColumn : Int -> List (List comparable) -> List (List comparable)
+sort2dListByColumn index the2dList =
+    List.sortWith (compareTwoListsByIndex index) the2dList
+
+
+compareTwoListsByIndex : Int -> List comparable -> List comparable -> Order
+compareTwoListsByIndex index firstList lastList =
+    case ListExtra.getAt index firstList of
+        Just item ->
+            case ListExtra.getAt index lastList of
+                Just lastItem ->
+                    compare item lastItem
+
+                Nothing ->
+                    LT
+
+        Nothing ->
+            EQ

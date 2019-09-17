@@ -85,4 +85,4 @@ viewBatchTaggingInput labelText idVal val options action =
 
 getColumnData : Int -> List Row -> List String
 getColumnData columnIndex records =
-    List.foldl (\row newList -> [ Maybe.withDefault "" <| ListExtra.getAt columnIndex row.cells ] ++ newList) [] records
+    List.foldl (.cells >> ListExtra.getAt columnIndex >> Maybe.withDefault "" >> List.singleton >> List.append) [] records
