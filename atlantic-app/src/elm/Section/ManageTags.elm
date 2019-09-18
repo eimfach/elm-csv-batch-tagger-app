@@ -12,14 +12,14 @@ import View.Tags
 
 view : ( String, Bool ) -> String -> Set Data.Alias.Tag -> (Data.Alias.Tag -> msg) -> msg -> (Data.Alias.Tag -> msg) -> Html.Html msg
 view error buffer tags tagInputMsg createTagMsg removeTagMsg =
-    div [ class "" ]
-        [ div [ class "" ]
+    div []
+        [ div []
             [ h3
                 [ class "uk-heading-line uk-text-center" ]
-                [ span [ class "uk-text-background uk-text-bold uk-text-large" ] [ text "Manage your tags" ]
+                [ span [ class "uk-text-background uk-text-large" ] [ text "Manage your tags" ]
                 ]
             ]
-        , div [ class "" ]
+        , div [ class "uk-padding" ]
             [ View.Input.viewWithButton
                 [ onInput tagInputMsg, value buffer, placeholder "enter a tag" ]
                 Data.Button.Add

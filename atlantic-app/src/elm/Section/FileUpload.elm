@@ -8,23 +8,26 @@ import Json.Decode exposing (succeed)
 
 view : Bool -> msg -> Html msg
 view fileExists changeMsg =
-    div [ class "" ]
+    div [ class "uk-section uk-section-small" ]
         [ h3
             [ class "uk-heading-line uk-text-center" ]
-            [ span [ class "uk-text-background uk-text-bold uk-text-large" ] [ text "Select a .csv file" ]
+            [ span [ class "uk-text-background uk-text-large" ] [ text "Select a .csv file" ]
             ]
-        , input
-            [ type_ "file", id "csv-upload", name "csv-upload", on "change" (succeed changeMsg) ]
-            []
-        , button
-            [ class "file-upload-button uk-button uk-button-default uk-width-1-1"
-            , classList [ ( "no-file", not fileExists ) ]
-            ]
-            [ label
-                [ attribute "uk-icon" "icon: upload"
-                , for "csv-upload"
-                , class "file-label"
+        , div
+            [ class "uk-padding" ]
+            [ input
+                [ type_ "file", id "csv-upload", name "csv-upload", on "change" (succeed changeMsg) ]
+                []
+            , button
+                [ class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
+                , classList [ ( "no-file", not fileExists ) ]
                 ]
-                [ text "" ]
+                [ label
+                    [ attribute "uk-icon" "icon: upload"
+                    , for "csv-upload"
+                    , class "file-label"
+                    ]
+                    [ text "" ]
+                ]
             ]
         ]

@@ -46,11 +46,11 @@ viewWithTagData exportAction { tag, headers, rows } =
         plainPreparedRows =
             rows |> flattenRows |> List.map (List.map text)
     in
-    div []
+    div [ class "uk-padding-small" ]
         [ p
             [ class "uk-position-relative" ]
             [ h3
-                [ class "uk-heading-line uk-text-center" ]
+                [ class "uk-text-center" ]
                 [ span
                     [ class "uk-text-large" ]
                     [ text tag ]

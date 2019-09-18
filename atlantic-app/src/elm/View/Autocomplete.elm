@@ -1,20 +1,22 @@
 module View.Autocomplete exposing (view)
 
-import Html exposing (Html, datalist, div, input, option, text)
-import Html.Attributes exposing (attribute, class, id, list)
+import Html exposing (Html, datalist, div, input, label, option, text)
+import Html.Attributes exposing (attribute, class, for, id, list)
 import Set exposing (Set)
 import View.Input as Input
 
 
 view : String -> String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
 view labelText val idVal inputAttr options =
-    div []
-        [ text labelText
-        , Input.viewDefault val
-            (inputAttr
-                ++ [ list idVal ]
-            )
-        , viewDataList idVal options
+    div [ class "uk-form-horizontal" ]
+        [ div [ class "uk-margin" ]
+            [ label [ class "uk-form-label" ] [ text labelText ]
+            , Input.viewDefault val
+                (inputAttr
+                    ++ [ list idVal ]
+                )
+            , viewDataList idVal options
+            ]
         ]
 
 

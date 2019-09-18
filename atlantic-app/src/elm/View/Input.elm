@@ -10,7 +10,7 @@ import View.Button as Button
 
 view : List (Html msg) -> Html msg
 view childs =
-    div [ class "input-group" ]
+    div [ class "uk-form-controls" ]
         childs
 
 

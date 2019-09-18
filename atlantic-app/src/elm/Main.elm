@@ -82,6 +82,18 @@ type Currency
     | Euro
 
 
+type DateFormat
+    = DDMMYYYY Separator
+    | YYYYMMDD Separator
+
+
+type Separator
+    = Slash
+    | Dot
+    | Space
+    | Dash
+
+
 {-| data of type Bucket can be either a single instance of type `a`,
 or a List of type `a`
 -}
@@ -419,12 +431,11 @@ update msg model =
                     ( updateCloseModal updatedModel, Cmd.none )
 
         SearchPatternInput columnKey searchPatternInput ->
-            case String.isEmpty searchPatternInput of
-                False ->
-                    ( { model | batchTaggingOptions = Dict.insert columnKey searchPatternInput model.batchTaggingOptions }, Cmd.none )
+            if String.isEmpty searchPatternInput then
+                ( { model | batchTaggingOptions = Dict.remove columnKey model.batchTaggingOptions }, Cmd.none )
 
-                True ->
-                    ( { model | batchTaggingOptions = Dict.remove columnKey model.batchTaggingOptions }, Cmd.none )
+            else
+                ( { model | batchTaggingOptions = Dict.insert columnKey searchPatternInput model.batchTaggingOptions }, Cmd.none )
 
         SetTaggingOption opt ->
             ( { model | optionTagging = opt }, Cmd.none )
@@ -681,7 +692,7 @@ view model =
         , div
             []
             [ div []
-                [ button [ class "uk-button uk-button-link", onClick ChooseDataFormat ] [ text "I want to reset my dataformats" ] ]
+                [ button [ class "uk-button uk-button-text", onClick ChooseDataFormat ] [ text "I want to reset my dataformats" ] ]
             , div []
                 [ Section.FileUpload.view (maybeToBool model.file) FileSelected ]
             , div []
@@ -724,31 +735,33 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
         [ div [ class "uk-position-relative" ]
             [ h3
                 [ class "uk-heading-line uk-text-center" ]
-                [ span [ class "uk-text-background uk-text-bold uk-text-large" ]
+                [ span [ class "uk-text-background uk-text-large" ]
                     [ text ("Apply tags (" ++ String.fromInt (List.length rows) ++ " left)")
                     ]
                 ]
             , nav
             ]
-        , div [ class "uk-width-1-1 uk-margin-large" ]
-            [ ul
-                [ class "uk-child-width-expand", attribute "uk-tab" "" ]
-                [ li
-                    [ onClick (SetTaggingOption SingleTagging)
-                    , classList [ ( "uk-active", singleIsActiveTab ) ]
+        , div [ class "uk-padding" ]
+            [ div [ class "uk-width-1-1 uk-margin-large" ]
+                [ ul
+                    [ class "uk-child-width-expand", attribute "uk-tab" "" ]
+                    [ li
+                        [ onClick (SetTaggingOption SingleTagging)
+                        , classList [ ( "uk-active", singleIsActiveTab ) ]
+                        ]
+                        [ a [ href "#" ] [ text "Single Tagging" ] ]
+                    , li
+                        [ onClick (SetTaggingOption BatchTagging)
+                        , classList [ ( "uk-active", not singleIsActiveTab ) ]
+                        ]
+                        [ a [ href "#" ] [ text "Batch Tagging" ] ]
                     ]
-                    [ a [ href "#" ] [ text "Single Tagging" ] ]
-                , li
-                    [ onClick (SetTaggingOption BatchTagging)
-                    , classList [ ( "uk-active", not singleIsActiveTab ) ]
-                    ]
-                    [ a [ href "#" ] [ text "Batch Tagging" ] ]
                 ]
+            , viewTab
+            , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text "Select a tag to tag your records:" ] ]
+            , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+            , hr [ class "uk-divider-icon" ] []
             ]
-        , viewTab
-        , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text "Select a tag to tag your records:" ] ]
-        , Tags.viewTagCloud (\tag -> taggingAction tag) tags
-        , hr [ class "uk-divider-icon" ] []
         ]
 
 
@@ -811,7 +824,7 @@ viewMappedRecordsPanel headers_ someTables =
             ([ h3
                 [ class "uk-heading-line uk-text-center" ]
                 [ span
-                    [ class "uk-text-background uk-text-bold uk-text-large" ]
+                    [ class "uk-text-background uk-text-large" ]
                     [ text "Tagged records" ]
                 ]
              ]
