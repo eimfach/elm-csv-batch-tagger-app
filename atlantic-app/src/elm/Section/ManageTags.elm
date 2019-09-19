@@ -10,13 +10,13 @@ import View.Input
 import View.Tags
 
 
-view : ( String, Bool ) -> String -> Set Data.Alias.Tag -> (Data.Alias.Tag -> msg) -> msg -> (Data.Alias.Tag -> msg) -> Html.Html msg
-view error buffer tags tagInputMsg createTagMsg removeTagMsg =
+view : String -> ( String, Bool ) -> String -> Set Data.Alias.Tag -> (Data.Alias.Tag -> msg) -> msg -> (Data.Alias.Tag -> msg) -> Html.Html msg
+view headerText error buffer tags tagInputMsg createTagMsg removeTagMsg =
     div []
         [ div []
             [ h3
                 [ class "uk-heading-line uk-text-center" ]
-                [ span [ class "uk-text-background uk-text-large" ] [ text "Manage your tags" ]
+                [ span [ class "uk-text-background uk-text-large" ] [ text headerText ]
                 ]
             ]
         , div [ class "uk-padding" ]

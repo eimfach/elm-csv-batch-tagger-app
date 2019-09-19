@@ -6,6 +6,7 @@ import Dict exposing (Dict)
 import Html exposing (div, p, span, text)
 import Html.Attributes exposing (class, placeholder)
 import Html.Events exposing (onInput)
+import Html.Lazy
 import List.Extra as ListExtra
 import Set exposing (Set)
 import View.Autocomplete
@@ -63,16 +64,18 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
         autoTagger =
             columns
                 |> List.indexedMap
-                    (\index column ->
-                        let
-                            val =
-                                Maybe.withDefault "" <| Dict.get column batchTaggingOptions
+                    (Html.Lazy.lazy2
+                        (\index column ->
+                            let
+                                val =
+                                    Maybe.withDefault "" <| Dict.get column batchTaggingOptions
 
-                            -- create data list for autocomplete
-                            options =
-                                Set.fromList <| getColumnData index records
-                        in
-                        viewBatchTaggingInput column ("autoTagger" ++ String.fromInt index) val options (inputAction column)
+                                -- create data list for autocomplete
+                                options =
+                                    Set.fromList <| Data.Table.getColumnData index records
+                            in
+                            Html.Lazy.lazy5 viewBatchTaggingInput column ("autoTagger" ++ String.fromInt index) val options (inputAction column)
+                        )
                     )
     in
     if List.isEmpty records then
@@ -95,8 +98,3 @@ viewBatchTaggingInput labelText idVal val options action =
         idVal
         [ placeholder "Select a keyword (Plain or Regex)", onInput action ]
         options
-
-
-getColumnData : Int -> List Row -> List String
-getColumnData columnIndex records =
-    List.foldl (.cells >> ListExtra.getAt columnIndex >> Maybe.withDefault "" >> List.singleton >> List.append) [] records

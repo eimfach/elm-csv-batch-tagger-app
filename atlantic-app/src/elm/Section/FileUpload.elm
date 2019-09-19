@@ -6,12 +6,12 @@ import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
 
 
-view : Bool -> msg -> Html msg
-view fileExists changeMsg =
+view : String -> Bool -> msg -> Html msg
+view headerText fileExists changeMsg =
     div [ class "uk-section uk-section-small" ]
         [ h3
             [ class "uk-heading-line uk-text-center" ]
-            [ span [ class "uk-text-background uk-text-large" ] [ text "Select a .csv file" ]
+            [ span [ class "uk-text-background uk-text-large" ] [ text headerText ]
             ]
         , div
             [ class "uk-padding" ]

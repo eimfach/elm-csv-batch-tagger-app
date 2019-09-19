@@ -1,8 +1,11 @@
-module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
+module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWithParser, prependCellToRow)
 
 import Data.Alias exposing (ColumnHeadingName, Tag)
+import Data.Helpers exposing (isResultOk, maybeToBool)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import List.Extra
+import Parser
 
 
 type alias Cell =
@@ -33,25 +36,11 @@ type alias TableDataTagged =
 
 
 -- "↓" "↑"
-
-
-type SortOrder
-    = ASC
-    | DESC
-
-
-
 -- Type Sort
 -- if every column of a dataset is unordered, the whole dataset is unordered
 -- if one ore multiple columns are ordererd (asc or desc) by default the dataset is ordered without any further doings.
 -- It doesn't matter how much are ordered, the whole dataset goes as sorted but we can't say sorted by which column.
 -- as a result we need to know each columns sorting state and reflect that in the types signature
-
-
-type Sort
-    = Unsorted
-    | Sorted SortOrder
-    | Empty
 
 
 encodeTableDataTagged : TableDataTagged -> Encode.Value
@@ -129,3 +118,22 @@ flattenRows someRows =
 prependCellToRow : String -> Row -> Row
 prependCellToRow cell aRow =
     { aRow | cells = cell :: aRow.cells }
+
+
+getColumnData : Int -> List Row -> List String
+getColumnData columnIndex records =
+    List.foldl (.cells >> List.Extra.getAt columnIndex >> Maybe.withDefault "" >> List.singleton >> List.append) [] records
+
+
+getColumnDataWithParser : Parser.Parser Float -> Int -> List Row -> Maybe (List Float)
+getColumnDataWithParser parseFloat columnIndex records =
+    let
+        columnData =
+            getColumnData columnIndex records
+                |> List.map (Parser.run parseFloat)
+    in
+    if List.all isResultOk columnData then
+        Just (List.map Result.toMaybe columnData |> List.filterMap identity)
+
+    else
+        Nothing

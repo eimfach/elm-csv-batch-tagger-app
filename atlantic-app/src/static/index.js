@@ -31,6 +31,9 @@ app.ports.setStorage.subscribe(function(state) {
   localStorage.setItem('store', JSON.stringify(state));
 });
 
+// TODO: wait for elm runtime to request the locale
+app.ports.getLocale.send(navigator.language ? navigator.language : "en-EN");
+
 app.ports.fileSelected.subscribe(function (id) {
   var node = document.getElementById(id)
   if (node === null) {

@@ -4,8 +4,10 @@ import Browser
 import Csv
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
+import Data.Helpers exposing (isResultOk, maybeToBool)
+import Data.Locale exposing (..)
 import Data.Modal
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWithParser, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
@@ -14,6 +16,7 @@ import Html.Events exposing (on, onClick, onInput)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
+import Parser exposing ((|.), (|=))
 import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
 import Regex
 import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
@@ -48,8 +51,23 @@ main =
 port setStorage : Encode.Value -> Cmd msg
 
 
+port getLocale : (String -> msg) -> Sub msg
+
+
 
 -- TYPES
+
+
+type alias HtmlNode =
+    Html.Html Msg
+
+
+type alias EncodedDataFormat =
+    String
+
+
+type alias Comparison =
+    String -> String -> Order
 
 
 type TaggingOption
@@ -59,14 +77,6 @@ type TaggingOption
 
 type UndoStrategy
     = DropLast
-
-
-type alias HtmlNode =
-    Html.Html Msg
-
-
-type alias EncodedDataFormat =
-    String
 
 
 type DataFormat
@@ -107,7 +117,8 @@ type Bucket a
 
 
 type alias Model =
-    { tags : Set Tag
+    { locale : Locale
+    , tags : Set Tag
     , addTagInputBuffer : String
     , addTagInputError : ( String, Bool )
     , fileUploadPointerId : HtmlNodeId
@@ -157,9 +168,13 @@ init flags =
             Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "batchTaggingOptions" (Decode.dict Decode.string)) flags
 
         dataFormats =
-            Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "dataFormats" (Decode.dict dataFormat)) flags
+            Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "dataFormats" (Decode.dict dataFormatDecoder)) flags
+
+        locale =
+            Result.withDefault getDefaultLocale <| Decode.decodeValue (Decode.field "locale" localeDecoder) flags
     in
-    ( { tags = tags
+    ( { locale = locale
+      , tags = tags
       , addTagInputBuffer = addTagInputBuffer
       , addTagInputError = addTagInputError
       , fileUploadPointerId = fileUploadPointerId
@@ -175,6 +190,11 @@ init flags =
     )
 
 
+getOriginalTableData : Model -> Maybe TableData
+getOriginalTableData model =
+    List.head (List.reverse model.tableData)
+
+
 tuple2Encoder : (a -> Encode.Value) -> (b -> Encode.Value) -> ( a, b ) -> Encode.Value
 tuple2Encoder enc1 enc2 ( val1, val2 ) =
     Encode.list identity [ enc1 val1, enc2 val2 ]
@@ -183,7 +203,8 @@ tuple2Encoder enc1 enc2 ( val1, val2 ) =
 encodeModel : Model -> Encode.Value
 encodeModel model =
     Encode.object
-        [ ( "tags", Encode.set Encode.string model.tags )
+        [ ( "locale", encodeLocale model.locale )
+        , ( "tags", Encode.set Encode.string model.tags )
         , ( "addTagInputBuffer", Encode.string model.addTagInputBuffer )
         , ( "addTagInputError", tuple2Encoder Encode.string Encode.bool model.addTagInputError )
         , ( "fileUploadPointerId", Encode.string model.fileUploadPointerId )
@@ -217,13 +238,13 @@ encodeDataFormat dataFormat_ =
             Encode.string "currency-dollar"
 
 
-dataFormat : Decode.Decoder DataFormat
-dataFormat =
-    Decode.string |> Decode.andThen dataFormatDecoder
+dataFormatDecoder : Decode.Decoder DataFormat
+dataFormatDecoder =
+    Decode.string |> Decode.andThen createDataFormatDecoder
 
 
-dataFormatDecoder : String -> Decode.Decoder DataFormat
-dataFormatDecoder encodedFormat =
+createDataFormatDecoder : String -> Decode.Decoder DataFormat
+createDataFormatDecoder encodedFormat =
     case parseDataFormat encodedFormat of
         Ok dataFormat_ ->
             Decode.succeed dataFormat_
@@ -263,6 +284,8 @@ parseDataFormat encodedFormat =
 
 type Msg
     = RemoveTag String
+    | ToggleLocale
+    | SetLocale String
     | TagInput String
     | CreateTagFromBuffer
     | FileSelected
@@ -297,6 +320,27 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        SetLocale val ->
+            case val of
+                "en-EN" ->
+                    ( updateSetLocale getEnglishLocale model, Cmd.none )
+
+                "de-DE" ->
+                    ( updateSetLocale getGermanLocale model, Cmd.none )
+
+                _ ->
+                    ( updateSetLocale getGermanLocale model, Cmd.none )
+
+        ToggleLocale ->
+            if isEnglishLocale model.locale then
+                ( updateSetLocale getGermanLocale model, Cmd.none )
+
+            else if isGermanLocale model.locale then
+                ( updateSetLocale getEnglishLocale model, Cmd.none )
+
+            else
+                ( updateSetLocale getDefaultLocale model, Cmd.none )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -338,15 +382,15 @@ update msg model =
                         newModel =
                             case parseCsvString ';' decodedData of
                                 Ok csv ->
-                                    createTableDataFromCsv csv model |> updateShowModalChooseDataFormat csv.headers
+                                    createTableDataFromCsv csv model |> updateSetDataFormats
 
                                 Err _ ->
                                     case parseCsvString ',' decodedData of
                                         Ok csv ->
-                                            createTableDataFromCsv csv model |> updateShowModalChooseDataFormat csv.headers
+                                            createTableDataFromCsv csv model |> updateSetDataFormats
 
                                         Err err ->
-                                            updateShowModalInfo "Error" model (text "There was an error parsing your file. The contents of your file are not supported.") CloseModal
+                                            updateShowModalInfo (translateErrorHeading model.locale) model (text <| translateErrorParsingYourFile model.locale) CloseModal
                     in
                     ( newModel
                     , Cmd.none
@@ -357,7 +401,7 @@ update msg model =
                         dialogContent =
                             text ("There was an error reading your file : " ++ error)
                     in
-                    ( updateShowModalInfo "Error" model dialogContent CloseModal, Cmd.none )
+                    ( updateShowModalInfo (translateErrorHeading model.locale) model dialogContent CloseModal, Cmd.none )
 
         MapRecordToTag recordBucket theTag ->
             let
@@ -469,7 +513,7 @@ update msg model =
             {- expected that each row has the tag name prepended -}
             let
                 preparedHeaders =
-                    setCSVSemicolonsInList ("Tag" :: headers)
+                    setCSVSemicolonsInList (translateTag model.locale :: headers)
 
                 preparedRows =
                     List.map setCSVSemicolonsInList <| flattenRows rows
@@ -484,11 +528,7 @@ update msg model =
             ( model, Download.string (tag ++ "-table.csv") "text/csv" theCsvString )
 
         SetDataFormatForColumn column encodedFormat ->
-            let
-                modelWithDataFormat =
-                    updateDataFormat column encodedFormat model
-            in
-            ( modelWithDataFormat, Cmd.none )
+            ( model, Cmd.none )
 
         SelectMatchingRecords headers tag rows ->
             let
@@ -588,17 +628,36 @@ update msg model =
                     ( updateShowModalChooseDataFormat headers model, Cmd.none )
 
                 Nothing ->
-                    ( updateShowModalInfo "Error" model (text "Please select a file to work with first. Your file may be empty.") CloseModal, Cmd.none )
+                    ( updateShowModalInfo (translateErrorHeading model.locale) model (text "Please select a file to work with first. Your file may be empty.") CloseModal, Cmd.none )
 
 
-updateDataFormat : ColumnHeadingName -> String -> Model -> Model
-updateDataFormat column encodedFormat model =
-    case parseDataFormat encodedFormat of
-        Ok format ->
-            { model | dataFormats = Dict.insert column format model.dataFormats }
+updateSetLocale : Locale -> Model -> Model
+updateSetLocale locale model =
+    { model | locale = locale }
 
-        Err err ->
-            updateShowModalInfo "Error" model (text err) CloseModal
+
+updateSetDataFormats model =
+    case getOriginalTableData model of
+        Just tableData ->
+            List.indexedMap
+                (\colIndex column ->
+                    case getColumnDataWithParser parseFloat colIndex tableData.rows of
+                        Just floatList ->
+                            updateDataFormat column Float
+
+                        Nothing ->
+                            updateDataFormat column Text
+                )
+                tableData.headers
+                |> List.foldl (\updatePart newModel -> updatePart newModel) model
+
+        Nothing ->
+            updateShowModalInfo (translateErrorHeading model.locale) model (text "Table Data lookup failed. No Data given.") CloseModal
+
+
+updateDataFormat : ColumnHeadingName -> DataFormat -> Model -> Model
+updateDataFormat column format model =
+    { model | dataFormats = Dict.insert column format model.dataFormats }
 
 
 updateShowModalChooseDataFormat : List String -> Model -> Model
@@ -659,7 +718,10 @@ updateCloseModal model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    fileContentRead ParseToCsv
+    Sub.batch
+        [ fileContentRead ParseToCsv
+        , getLocale SetLocale
+        ]
 
 
 
@@ -680,6 +742,16 @@ view model =
 
         taggingSectionNav =
             viewTaggingIconNav ( model.tableData, model.tableDataTagged )
+
+        locale =
+            if isEnglishLocale model.locale then
+                "EN"
+
+            else if isGermanLocale model.locale then
+                "DE"
+
+            else
+                "UNKNOWN"
     in
     div [ id "container", class "uk-container" ]
         [ Modal.view
@@ -691,28 +763,28 @@ view model =
             model.showModal.buttons
         , div
             []
-            [ div []
-                [ button [ class "uk-button uk-button-text", onClick ChooseDataFormat ] [ text "I want to reset my dataformats" ] ]
+            [ div [ class "uk-margin-top" ]
+                [ button [ class "uk-button", onClick ToggleLocale ] [ text <| translateLocale model.locale ++ ": " ++ locale ] ]
             , div []
-                [ Section.FileUpload.view (maybeToBool model.file) FileSelected ]
+                [ Section.FileUpload.view (translateSelectAcsvFile model.locale) (maybeToBool model.file) FileSelected ]
             , div []
-                [ Section.ManageTags.view model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
+                [ Section.ManageTags.view (translateManageYourTags model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
-                [ viewTaggingSection model.optionTagging model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
+                [ viewTaggingSection (translateApplyTags model.locale) model.optionTagging model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
                 ]
             ]
         , div
             [ class "row" ]
             [ div [ class "col-lg-12 col-sm-12" ]
-                [ viewMappedRecordsPanel tableData.headers tableDataTagged
+                [ viewMappedRecordsPanel (translateTag model.locale) tableData.headers tableDataTagged
                 ]
             ]
         ]
 
 
-viewTaggingSection : TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
-viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
+viewTaggingSection : (Int -> String) -> TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
+viewTaggingSection translateHeaderText taggingOption batchTaggingOptions tags headers row rows nav =
     let
         taggingAction tag =
             case taggingOption of
@@ -736,7 +808,7 @@ viewTaggingSection taggingOption batchTaggingOptions tags headers row rows nav =
             [ h3
                 [ class "uk-heading-line uk-text-center" ]
                 [ span [ class "uk-text-background uk-text-large" ]
-                    [ text ("Apply tags (" ++ String.fromInt (List.length rows) ++ " left)")
+                    [ text (translateHeaderText (List.length rows))
                     ]
                 ]
             , nav
@@ -790,8 +862,8 @@ viewTaggingIconNav ( history1, history2 ) =
         ]
 
 
-viewMappedRecordsPanel : List String -> List TableDataTagged -> Html Msg
-viewMappedRecordsPanel headers_ someTables =
+viewMappedRecordsPanel : String -> List String -> List TableDataTagged -> Html Msg
+viewMappedRecordsPanel tagTranslation headers_ someTables =
     if List.isEmpty someTables then
         text ""
 
@@ -804,7 +876,7 @@ viewMappedRecordsPanel headers_ someTables =
                         let
                             headersWithSortMsg =
                                 List.map (\column -> ( column, SortTaggedTable tag column )) headers
-                                    |> List.append [ ( "Tag", NoOp ) ]
+                                    |> List.append [ ( tagTranslation, NoOp ) ]
                         in
                         { tag = tag, headers = headersWithSortMsg, rows = List.map (prependCellToRow tag) rows }
                     )
@@ -849,11 +921,6 @@ viewPlainRecords descr headers rows =
 
 
 -- HELPERS
-
-
-getColumnData : Int -> List Row -> List String
-getColumnData columnIndex records =
-    List.foldl (\row newList -> [ Maybe.withDefault "" <| ListExtra.getAt columnIndex row.cells ] ++ newList) [] records
 
 
 mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { cells : List ( ColumnHeadingName, Cell ) }
@@ -916,16 +983,6 @@ createTableDataFromCsv csv model =
     { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
 
 
-maybeToBool : Maybe a -> Bool
-maybeToBool aMaybe =
-    case aMaybe of
-        Just something ->
-            True
-
-        Nothing ->
-            False
-
-
 setCSVSemicolonsInList : List String -> List String
 setCSVSemicolonsInList aList =
     let
@@ -955,12 +1012,12 @@ setCSVSemicolonsInList aList =
         aList
 
 
-sort2dListByColumn : Int -> List (List comparable) -> List (List comparable)
+sort2dListByColumn : Int -> List (List String) -> List (List String)
 sort2dListByColumn index the2dList =
     List.sortWith (compareTwoListsByIndex index) the2dList
 
 
-compareTwoListsByIndex : Int -> List comparable -> List comparable -> Order
+compareTwoListsByIndex : Int -> List String -> List String -> Order
 compareTwoListsByIndex index firstList lastList =
     case ( ListExtra.getAt index firstList, ListExtra.getAt index lastList ) of
         ( Just firstItem, Just nextItem ) ->
@@ -974,3 +1031,30 @@ compareTwoListsByIndex index firstList lastList =
 
         ( Nothing, Nothing ) ->
             LT
+
+
+parseFloat : Parser.Parser Float
+parseFloat =
+    Parser.succeed (\sign left right -> ( sign, left, right ))
+        |= Parser.oneOf
+            [ Parser.map (always "-") (Parser.symbol "-")
+            , Parser.succeed ""
+            ]
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.oneOf
+            [ Parser.symbol "."
+            , Parser.symbol ","
+            ]
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.end
+        |> Parser.andThen convertToFloat
+
+
+convertToFloat : ( String, String, String ) -> Parser.Parser Float
+convertToFloat ( sign, first, last ) =
+    case String.toFloat (sign ++ first ++ "." ++ last) of
+        Just float ->
+            Parser.succeed float
+
+        Nothing ->
+            Parser.problem "expecting float number"
