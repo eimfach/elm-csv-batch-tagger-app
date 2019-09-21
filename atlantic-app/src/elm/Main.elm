@@ -62,10 +62,6 @@ type alias HtmlNode =
     Html.Html Msg
 
 
-type alias EncodedDataFormat =
-    String
-
-
 type alias Comparison =
     String -> String -> Order
 
@@ -77,6 +73,11 @@ type TaggingOption
 
 type UndoStrategy
     = DropLast
+
+
+type ModalContent
+    = ViewMapRecordsToTag (List ColumnHeadingName) (List (List String)) Tag
+    | ViewInfo String
 
 
 type DataFormat
@@ -128,20 +129,23 @@ type alias Model =
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
     , dataFormats : Dict ColumnHeadingName DataFormat
     , optionTagging : TaggingOption
-    , showModal : Data.Modal.State Msg
+    , showModal : Maybe (Data.Modal.State ModalContent)
     }
 
 
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     let
+        locale =
+            Result.withDefault getDefaultLocale <| Decode.decodeValue (Decode.field "locale" localeDecoder) flags
+
         tags =
             case Decode.decodeValue (Decode.field "tags" (Decode.list Decode.string)) flags of
                 Ok val ->
                     Set.fromList val
 
                 Err _ ->
-                    Set.fromList [ "finance", "household", "expenses" ]
+                    Set.fromList (translateDefaultTags locale)
 
         addTagInputBuffer =
             Result.withDefault "" <| Decode.decodeValue (Decode.field "addTagInputBuffer" Decode.string) flags
@@ -170,8 +174,8 @@ init flags =
         dataFormats =
             Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "dataFormats" (Decode.dict dataFormatDecoder)) flags
 
-        locale =
-            Result.withDefault getDefaultLocale <| Decode.decodeValue (Decode.field "locale" localeDecoder) flags
+        showModal =
+            Result.withDefault Nothing <| Decode.decodeValue (Decode.field "showModal" (Decode.nullable (Data.Modal.createStateDecoder modalContentDecoder))) flags
     in
     ( { locale = locale
       , tags = tags
@@ -184,7 +188,7 @@ init flags =
       , batchTaggingOptions = batchTaggingOptions
       , dataFormats = dataFormats
       , optionTagging = BatchTagging
-      , showModal = { visible = Data.Modal.NotVisible, content = text "", buttons = [], title = "", displayProperties = Data.Modal.Fullscreen }
+      , showModal = showModal
       }
     , Cmd.none
     )
@@ -213,7 +217,53 @@ encodeModel model =
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
         , ( "dataFormats", Encode.dict identity encodeDataFormat model.dataFormats )
+        , ( "showModal", encodeShowModal model.showModal )
         ]
+
+
+encodeShowModal : Maybe (Data.Modal.State ModalContent) -> Encode.Value
+encodeShowModal showModal =
+    case showModal of
+        Just modalState ->
+            Data.Modal.encodeState modalState encodeModalContent
+
+        Nothing ->
+            Encode.null
+
+
+modalContentDecoder : Decode.Decoder ModalContent
+modalContentDecoder =
+    Decode.oneOf
+        [ Decode.field "viewMapRecordsToTag"
+            (Decode.map3 ViewMapRecordsToTag
+                (Decode.field "columns" <| Decode.list Decode.string)
+                (Decode.field "records" <| Decode.list (Decode.list Decode.string))
+                (Decode.field "tag" Decode.string)
+            )
+        , Decode.field "viewInfo" (Decode.string |> Decode.map ViewInfo)
+        ]
+
+
+encodeModalContent : ModalContent -> Encode.Value
+encodeModalContent modalContent_ =
+    case modalContent_ of
+        ViewMapRecordsToTag columns records tag ->
+            let
+                valuesEncoding =
+                    Encode.object
+                        [ ( "columns", Encode.list Encode.string columns )
+                        , ( "records", Encode.list (Encode.list Encode.string) records )
+                        , ( "tag", Encode.string tag )
+                        ]
+            in
+            Encode.object
+                [ ( "viewMapRecordsToTag", valuesEncoding )
+                ]
+
+        ViewInfo someText ->
+            Encode.object
+                [ ( "viewInfo", Encode.string someText )
+                ]
 
 
 encodeDataFormat : DataFormat -> Encode.Value
@@ -275,7 +325,7 @@ parseDataFormat encodedFormat =
             Ok (Currency Dollar)
 
         _ ->
-            Err "Invalid DataFormat Encoding"
+            Err "Invalid ModalContent Encoding"
 
 
 
@@ -294,15 +344,11 @@ type Msg
     | SearchPatternInput ColumnHeadingName SearchPattern
     | SetTaggingOption TaggingOption
     | NoOp
-    | OpenModal Data.Modal.Title HtmlNode Msg Msg
-    | OpenModalInfo Data.Modal.Title HtmlNode Msg
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
     | TableDownload TableDataTagged
-    | SetDataFormatForColumn ColumnHeadingName EncodedDataFormat
     | SelectMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
-    | ChooseDataFormat
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -329,7 +375,7 @@ update msg model =
                     ( updateSetLocale getGermanLocale model, Cmd.none )
 
                 _ ->
-                    ( updateSetLocale getGermanLocale model, Cmd.none )
+                    ( updateSetLocale getEnglishLocale model, Cmd.none )
 
         ToggleLocale ->
             if isEnglishLocale model.locale then
@@ -390,18 +436,14 @@ update msg model =
                                             createTableDataFromCsv csv model |> updateSetDataFormats
 
                                         Err err ->
-                                            updateShowModalInfo (translateErrorHeading model.locale) model (text <| translateErrorParsingYourFile model.locale) CloseModal
+                                            updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| translateErrorParsingYourFile model.locale) model
                     in
                     ( newModel
                     , Cmd.none
                     )
 
                 Err error ->
-                    let
-                        dialogContent =
-                            text ("There was an error reading your file : " ++ error)
-                    in
-                    ( updateShowModalInfo (translateErrorHeading model.locale) model dialogContent CloseModal, Cmd.none )
+                    ( updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| "There was an error reading your file : " ++ error) model, Cmd.none )
 
         MapRecordToTag recordBucket theTag ->
             let
@@ -484,12 +526,6 @@ update msg model =
         SetTaggingOption opt ->
             ( { model | optionTagging = opt }, Cmd.none )
 
-        OpenModalInfo title content cancelMsg ->
-            ( updateShowModalInfo title model content cancelMsg, Cmd.none )
-
-        OpenModal title content saveMsg cancelMsg ->
-            ( updateShowModal Data.Modal.Fullscreen title model content saveMsg cancelMsg, Cmd.none )
-
         CloseModal ->
             ( updateCloseModal model, Cmd.none )
 
@@ -525,13 +561,13 @@ update msg model =
                 theCsvString =
                     List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
             in
-            ( model, Download.string (tag ++ "-table.csv") "text/csv" theCsvString )
-
-        SetDataFormatForColumn column encodedFormat ->
-            ( model, Cmd.none )
+            ( model, Download.string (tag ++ "-" ++ translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
 
         SelectMatchingRecords headers tag rows ->
             let
+                columnSearchPatternCount =
+                    Dict.size model.batchTaggingOptions
+
                 matchedRows =
                     rows
                         |> List.map
@@ -561,7 +597,7 @@ update msg model =
                                             0
                                             row_.cells
                                 in
-                                Dict.size model.batchTaggingOptions == matchingCellCount
+                                columnSearchPatternCount > 0 && columnSearchPatternCount == matchingCellCount
                             )
 
                 matchedRowsAsRowType =
@@ -571,22 +607,23 @@ update msg model =
                 plainMatchedRecords =
                     rowPlain matchedRowsAsRowType
 
-                modelTitleText =
-                    String.fromInt (List.length plainMatchedRecords) ++ " Records that will be tagged"
-            in
-            if List.isEmpty plainMatchedRecords then
-                ( updateShowModalInfo modelTitleText model (text "There were no matching records found") CloseModal, Cmd.none )
+                modalTitleText =
+                    translateRecordsThatWillBeTagged model.locale (List.length plainMatchedRecords)
 
-            else
-                ( updateShowModal
-                    Data.Modal.Fullscreen
-                    modelTitleText
-                    model
-                    (Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainMatchedRecords)
-                    (MapRecordToTag (Multiple matchedRowsAsRowType) tag)
-                    CloseModal
-                , Cmd.none
-                )
+                modalDisplay =
+                    if List.isEmpty plainMatchedRecords then
+                        Data.Modal.RegularView
+
+                    else
+                        Data.Modal.Fullscreen
+            in
+            ( updateShowModal
+                modalDisplay
+                modalTitleText
+                (ViewMapRecordsToTag headers plainMatchedRecords tag)
+                model
+            , Cmd.none
+            )
 
         SortTaggedTable theTagToLookup column ->
             let
@@ -617,23 +654,20 @@ update msg model =
                             ( { model | tableDataTagged = List.append [ newTableDataTaggedList ] model.tableDataTagged }, Cmd.none )
 
                         Nothing ->
-                            ( updateShowModalInfo "Sorting Tables" model (text "Index for TableData.Header lookup failed.") CloseModal, Cmd.none )
+                            ( updateShowModalInfo "Sorting Tables" (ViewInfo "Index for TableData.Header lookup failed.") model, Cmd.none )
 
                 _ ->
-                    ( updateShowModalInfo "Sorting Tables" model (text "TableData lookup failed.") CloseModal, Cmd.none )
-
-        ChooseDataFormat ->
-            case List.head model.tableData of
-                Just { headers } ->
-                    ( updateShowModalChooseDataFormat headers model, Cmd.none )
-
-                Nothing ->
-                    ( updateShowModalInfo (translateErrorHeading model.locale) model (text "Please select a file to work with first. Your file may be empty.") CloseModal, Cmd.none )
+                    ( updateShowModalInfo "Sorting Tables" (ViewInfo "TableData lookup failed.") model, Cmd.none )
 
 
 updateSetLocale : Locale -> Model -> Model
 updateSetLocale locale model =
     { model | locale = locale }
+
+
+updateSetDefaultTags : Locale -> Model -> Model
+updateSetDefaultTags locale model =
+    { model | tags = Set.fromList <| translateDefaultTags locale }
 
 
 updateSetDataFormats model =
@@ -652,7 +686,7 @@ updateSetDataFormats model =
                 |> List.foldl (\updatePart newModel -> updatePart newModel) model
 
         Nothing ->
-            updateShowModalInfo (translateErrorHeading model.locale) model (text "Table Data lookup failed. No Data given.") CloseModal
+            updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo "Table Data lookup failed. No Data given.") model
 
 
 updateDataFormat : ColumnHeadingName -> DataFormat -> Model -> Model
@@ -660,56 +694,19 @@ updateDataFormat column format model =
     { model | dataFormats = Dict.insert column format model.dataFormats }
 
 
-updateShowModalChooseDataFormat : List String -> Model -> Model
-updateShowModalChooseDataFormat headers model =
-    let
-        selectDataformat =
-            headers
-                |> List.map
-                    (\column ->
-                        select [ onInput (SetDataFormatForColumn column), class "uk-select" ]
-                            [ option [ value "text" ] [ text "Text" ]
-                            , option [ value "float" ] [ text "Float" ]
-                            , option [ value "integer" ] [ text "Integer" ]
-                            , option [ value "date" ] [ text "Date" ]
-                            , option [ value "currency-euro" ] [ text "Currency Euro" ]
-                            , option [ value "currency-dollar" ] [ text "Currency Dollar" ]
-                            ]
-                    )
-
-        dataFormatModalContent =
-            div []
-                [ h4 [ class "uk-text-emphasis" ] [ text "Can you tell me the dataformats of each column of your table ?" ]
-                , Table.viewSingle [] headers selectDataformat
-                ]
-    in
-    updateShowModalInfo "Choose Dataformats" model dataFormatModalContent CloseModal
+updateShowModalInfo : Data.Modal.Title -> ModalContent -> Model -> Model
+updateShowModalInfo title content model =
+    { model | showModal = Just (Data.Modal.State content title Data.Modal.RegularView) }
 
 
-updateShowModalInfo : Data.Modal.Title -> Model -> HtmlNode -> Msg -> Model
-updateShowModalInfo title model content cancelMsg =
-    let
-        buttons =
-            [ ( Data.Button.Secondary, cancelMsg, "Ok" )
-            ]
-    in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title Data.Modal.RegularView }
-
-
-updateShowModal : Data.Modal.DisplayProperties -> Data.Modal.Title -> Model -> HtmlNode -> Msg -> Msg -> Model
-updateShowModal displayProperties title model content saveMsg cancelMsg =
-    let
-        buttons =
-            [ ( Data.Button.Secondary, cancelMsg, "Cancel" )
-            , ( Data.Button.Secondary, saveMsg, "Save" )
-            ]
-    in
-    { model | showModal = Data.Modal.State Data.Modal.Visible content buttons title displayProperties }
+updateShowModal : Data.Modal.DisplayProperties -> Data.Modal.Title -> ModalContent -> Model -> Model
+updateShowModal displayProperties title content model =
+    { model | showModal = Just (Data.Modal.State content title displayProperties) }
 
 
 updateCloseModal : Model -> Model
 updateCloseModal model =
-    { model | showModal = Data.Modal.State Data.Modal.NotVisible model.showModal.content model.showModal.buttons model.showModal.title model.showModal.displayProperties }
+    { model | showModal = Nothing }
 
 
 
@@ -728,6 +725,42 @@ subscriptions model =
 -- VIEW
 
 
+viewModalContent : Locale -> ModalContent -> Html.Html Msg
+viewModalContent locale modalContent =
+    case modalContent of
+        ViewMapRecordsToTag headers plainRecords tag ->
+            if List.isEmpty plainRecords then
+                text <| translateNoMatchingRecordsFound locale
+
+            else
+                Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainRecords
+
+        ViewInfo info ->
+            text info
+
+
+getModalButtons : Locale -> ModalContent -> List (Data.Modal.Button Msg)
+getModalButtons locale modalContent =
+    case modalContent of
+        ViewMapRecordsToTag headers plainRecords tag ->
+            if List.isEmpty plainRecords then
+                [ ( Data.Button.Secondary, CloseModal, "OK" )
+                ]
+
+            else
+                let
+                    saveMsg =
+                        MapRecordToTag (Multiple <| List.map Row plainRecords) tag
+                in
+                [ ( Data.Button.Primary, saveMsg, translateSave locale )
+                , ( Data.Button.Secondary, CloseModal, translateCancel locale )
+                ]
+
+        ViewInfo info ->
+            [ ( Data.Button.Secondary, CloseModal, "OK" )
+            ]
+
+
 view : Model -> HtmlNode
 view model =
     let
@@ -743,7 +776,20 @@ view model =
         taggingSectionNav =
             viewTaggingIconNav ( model.tableData, model.tableDataTagged )
 
-        locale =
+        modal =
+            case model.showModal of
+                Just modal_ ->
+                    Modal.view
+                        modal_.displayProperties
+                        CloseModal
+                        modal_.title
+                        (viewModalContent model.locale modal_.content)
+                        (getModalButtons model.locale modal_.content)
+
+                Nothing ->
+                    text ""
+
+        localeTranslation =
             if isEnglishLocale model.locale then
                 "EN"
 
@@ -754,38 +800,58 @@ view model =
                 "UNKNOWN"
     in
     div [ id "container", class "uk-container" ]
-        [ Modal.view
-            model.showModal.displayProperties
-            CloseModal
-            model.showModal.visible
-            model.showModal.title
-            model.showModal.content
-            model.showModal.buttons
+        [ modal
         , div
             []
             [ div [ class "uk-margin-top" ]
-                [ button [ class "uk-button", onClick ToggleLocale ] [ text <| translateLocale model.locale ++ ": " ++ locale ] ]
+                [ button [ class "uk-button", onClick ToggleLocale ] [ text <| translateLocale model.locale ++ ": " ++ localeTranslation ] ]
             , div []
                 [ Section.FileUpload.view (translateSelectAcsvFile model.locale) (maybeToBool model.file) FileSelected ]
             , div []
-                [ Section.ManageTags.view (translateManageYourTags model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
+                [ Section.ManageTags.view (translateManageYourTags model.locale) (translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
-                [ viewTaggingSection (translateApplyTags model.locale) model.optionTagging model.batchTaggingOptions model.tags tableData.headers currentRow tableData.rows taggingSectionNav
+                [ viewTaggingSection
+                    model.locale
+                    model.optionTagging
+                    model.batchTaggingOptions
+                    model.tags
+                    tableData.headers
+                    currentRow
+                    tableData.rows
+                    taggingSectionNav
                 ]
             ]
         , div
             [ class "row" ]
             [ div [ class "col-lg-12 col-sm-12" ]
-                [ viewMappedRecordsPanel (translateTag model.locale) tableData.headers tableDataTagged
+                [ viewMappedRecordsPanel (translateTag model.locale) (translateTaggedRecords model.locale) tableData.headers tableDataTagged
                 ]
             ]
         ]
 
 
-viewTaggingSection : (Int -> String) -> TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
-viewTaggingSection translateHeaderText taggingOption batchTaggingOptions tags headers row rows nav =
+viewTaggingSection : Locale -> TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
+viewTaggingSection locale taggingOption batchTaggingOptions tags headers row rows nav =
     let
+        translateHeaderText =
+            translateApplyTags locale
+
+        singleTaggingText =
+            translateSingleTagging locale
+
+        batchTaggingText =
+            translateBatchTagging locale
+
+        placeholderText =
+            translateSelectAKeywordOrRegex locale
+
+        tagActionText =
+            translateSelectATagToTag locale
+
+        helpText =
+            translateHowBatchTaggingWorks locale
+
         taggingAction tag =
             case taggingOption of
                 SingleTagging ->
@@ -801,7 +867,7 @@ viewTaggingSection translateHeaderText taggingOption batchTaggingOptions tags he
                     ( True, viewManualTaggingTab headers row.cells )
 
                 BatchTagging ->
-                    ( False, viewBatchTaggingTab batchTaggingOptions SearchPatternInput headers rows )
+                    ( False, viewBatchTaggingTab placeholderText helpText batchTaggingOptions SearchPatternInput headers rows )
     in
     div []
         [ div [ class "uk-position-relative" ]
@@ -821,16 +887,16 @@ viewTaggingSection translateHeaderText taggingOption batchTaggingOptions tags he
                         [ onClick (SetTaggingOption SingleTagging)
                         , classList [ ( "uk-active", singleIsActiveTab ) ]
                         ]
-                        [ a [ href "#" ] [ text "Single Tagging" ] ]
+                        [ a [ href "#" ] [ text singleTaggingText ] ]
                     , li
                         [ onClick (SetTaggingOption BatchTagging)
                         , classList [ ( "uk-active", not singleIsActiveTab ) ]
                         ]
-                        [ a [ href "#" ] [ text "Batch Tagging" ] ]
+                        [ a [ href "#" ] [ text batchTaggingText ] ]
                     ]
                 ]
             , viewTab
-            , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text "Select a tag to tag your records:" ] ]
+            , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
             , Tags.viewTagCloud (\tag -> taggingAction tag) tags
             , hr [ class "uk-divider-icon" ] []
             ]
@@ -862,8 +928,8 @@ viewTaggingIconNav ( history1, history2 ) =
         ]
 
 
-viewMappedRecordsPanel : String -> List String -> List TableDataTagged -> Html Msg
-viewMappedRecordsPanel tagTranslation headers_ someTables =
+viewMappedRecordsPanel : String -> String -> List String -> List TableDataTagged -> Html Msg
+viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
     if List.isEmpty someTables then
         text ""
 
@@ -897,7 +963,7 @@ viewMappedRecordsPanel tagTranslation headers_ someTables =
                 [ class "uk-heading-line uk-text-center" ]
                 [ span
                     [ class "uk-text-background uk-text-large" ]
-                    [ text "Tagged records" ]
+                    [ text taggedRecordsText ]
                 ]
              ]
                 ++ rowsViews

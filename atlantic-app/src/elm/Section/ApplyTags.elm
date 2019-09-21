@@ -37,8 +37,8 @@ viewManualTaggingTab columns records =
     div [] content
 
 
-viewBatchTaggingTab : Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
-viewBatchTaggingTab batchTaggingOptions inputAction columns records =
+viewBatchTaggingTab : String -> String -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTaggingTab placeholderText helpText batchTaggingOptions inputAction columns records =
     let
         content =
             if List.isEmpty records then
@@ -50,16 +50,16 @@ viewBatchTaggingTab batchTaggingOptions inputAction columns records =
                     [ span
                         [ class "uk-label uk-text-small" ]
                         [ text "NOTE" ]
-                    , text "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
+                    , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ helpText ]
                     ]
-                , viewBatchTagging batchTaggingOptions inputAction columns records
+                , viewBatchTagging placeholderText batchTaggingOptions inputAction columns records
                 ]
     in
     div [] content
 
 
-viewBatchTagging : Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
-viewBatchTagging batchTaggingOptions inputAction columns records =
+viewBatchTagging : String -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTagging placeholderText batchTaggingOptions inputAction columns records =
     let
         autoTagger =
             columns
@@ -74,7 +74,7 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
                                 options =
                                     Set.fromList <| Data.Table.getColumnData index records
                             in
-                            Html.Lazy.lazy5 viewBatchTaggingInput column ("autoTagger" ++ String.fromInt index) val options (inputAction column)
+                            Html.Lazy.lazy6 viewBatchTaggingInput column placeholderText ("autoTagger" ++ String.fromInt index) val options (inputAction column)
                         )
                     )
     in
@@ -90,11 +90,11 @@ viewBatchTagging batchTaggingOptions inputAction columns records =
             ]
 
 
-viewBatchTaggingInput : String -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
-viewBatchTaggingInput labelText idVal val options action =
+viewBatchTaggingInput : String -> String -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput labelText placeholderText idVal val options action =
     View.Autocomplete.view
         labelText
         val
         idVal
-        [ placeholder "Select a keyword (Plain or Regex)", onInput action ]
+        [ placeholder placeholderText, onInput action ]
         options

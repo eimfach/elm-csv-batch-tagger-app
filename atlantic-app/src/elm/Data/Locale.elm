@@ -1,4 +1,4 @@
-module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateErrorHeading, translateErrorParsingYourFile, translateLocale, translateManageYourTags, translateSelectAcsvFile, translateTag)
+module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTaggedRecords)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -16,16 +16,11 @@ type alias Translation =
 
 -- "Tag already exists"
 -- "There was an error reading your file : "
--- "Tag" (used as header)
--- -table (used in filename)
--- " Records that will be tagged"
--- "There were no matching records found"
 -- "Sorting Tables"
 -- "Index for TableData.Header lookup failed."
 -- "TableData lookup failed."
 -- "Please select a file to work with first. Your file may be empty."
 -- "Table Data lookup failed. No Data given."
--- "Can you tell me the dataformats of each column of your table ?"
 -- "Choose Dataformats"
 -- Select a tag to tag your records:
 -- "expecting float number"
@@ -33,9 +28,16 @@ type alias Translation =
 -- "  Records are processed in order provided by your file."
 -- "There are no records yet to choose from, please select a file."
 -- "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
--- "Select a keyword (Plain or Regex)"
--- "enter a tag"
--- Locale
+
+
+translateDefaultTags : Locale -> List String
+translateDefaultTags locale =
+    case locale of
+        EN ->
+            [ "finance", "household", "expenses" ]
+
+        DE ->
+            [ "finanzen", "haushalt", "ausgaben" ]
 
 
 translateLocale : Translation
@@ -46,6 +48,125 @@ translateLocale locale =
 
         DE ->
             "Sprache"
+
+
+translateSave : Translation
+translateSave locale =
+    case locale of
+        EN ->
+            "Save"
+
+        DE ->
+            "Speichern"
+
+
+translateCancel : Translation
+translateCancel locale =
+    case locale of
+        EN ->
+            "Speichern"
+
+        DE ->
+            "Abbrechen"
+
+
+translateHowBatchTaggingWorks locale =
+    case locale of
+        EN ->
+            "How Batch Tagging works: Choose one or more columns and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
+
+        DE ->
+            "Wie Stapel Zuordnung funktioniert: Gebe zuerst einen Suchbegriff für eine oder mehrere Spalten ein. Diese Suchbegriffe werden den übereinstimmenden Einträgen zugeordnet. Wähle als nächtes eine Kategorie um die Einträge in deine kategorisierten Einträge zu übernehmen."
+
+
+translateSelectATagToTag : Translation
+translateSelectATagToTag locale =
+    case locale of
+        EN ->
+            "Select a tag to proceed tagging your matching records"
+
+        DE ->
+            "Wähle eine Kategorie um die übereinstimmenden Einträge zuzuordnen"
+
+
+translateTaggedRecords : Translation
+translateTaggedRecords locale =
+    case locale of
+        EN ->
+            "Tagged records"
+
+        DE ->
+            "Kategorisierte Einträge"
+
+
+translateSelectAKeywordOrRegex : Translation
+translateSelectAKeywordOrRegex locale =
+    case locale of
+        EN ->
+            "Insert a keyword (Plain or Regex) ..."
+
+        DE ->
+            "Suchbegriff oder Regulären Ausdruck eingeben ..."
+
+
+translateBatchTagging : Translation
+translateBatchTagging locale =
+    case locale of
+        EN ->
+            "Batch Tagging"
+
+        DE ->
+            "Stapel Zuordnung"
+
+
+translateSingleTagging : Translation
+translateSingleTagging locale =
+    case locale of
+        EN ->
+            "Single Tagging"
+
+        DE ->
+            "Einzel Zuordnung"
+
+
+translateTableFileName : Translation
+translateTableFileName locale =
+    case locale of
+        EN ->
+            "table"
+
+        DE ->
+            "tabelle"
+
+
+translateEnterATag : Translation
+translateEnterATag locale =
+    case locale of
+        EN ->
+            "enter a tag ..."
+
+        DE ->
+            "Kategorie eingeben ..."
+
+
+translateNoMatchingRecordsFound : Translation
+translateNoMatchingRecordsFound locale =
+    case locale of
+        EN ->
+            "There were no matching records found"
+
+        DE ->
+            "Es wurden keine Einträge gefunden, die mit deinen Suchkriterien übereinstimmen"
+
+
+translateRecordsThatWillBeTagged : Locale -> Int -> String
+translateRecordsThatWillBeTagged locale count =
+    case locale of
+        EN ->
+            String.fromInt count ++ " Records that will be tagged"
+
+        DE ->
+            String.fromInt count ++ " Einträge die kategorisiert werden sollen"
 
 
 translateTagAlreadyExists : Translation
@@ -139,22 +260,27 @@ translateApplyTags locale count =
  --}
 
 
+isEnglishLocale : Locale -> Bool
 isEnglishLocale locale =
     locale == EN
 
 
+isGermanLocale : Locale -> Bool
 isGermanLocale locale =
     locale == DE
 
 
+getEnglishLocale : Locale
 getEnglishLocale =
     EN
 
 
+getGermanLocale : Locale
 getGermanLocale =
     DE
 
 
+getDefaultLocale : Locale
 getDefaultLocale =
     EN
 

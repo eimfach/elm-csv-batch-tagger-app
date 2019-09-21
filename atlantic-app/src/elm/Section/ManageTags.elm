@@ -10,8 +10,8 @@ import View.Input
 import View.Tags
 
 
-view : String -> ( String, Bool ) -> String -> Set Data.Alias.Tag -> (Data.Alias.Tag -> msg) -> msg -> (Data.Alias.Tag -> msg) -> Html.Html msg
-view headerText error buffer tags tagInputMsg createTagMsg removeTagMsg =
+view : String -> String -> ( String, Bool ) -> String -> Set Data.Alias.Tag -> (Data.Alias.Tag -> msg) -> msg -> (Data.Alias.Tag -> msg) -> Html.Html msg
+view headerText inputPlaceholder error buffer tags tagInputMsg createTagMsg removeTagMsg =
     div []
         [ div []
             [ h3
@@ -21,7 +21,7 @@ view headerText error buffer tags tagInputMsg createTagMsg removeTagMsg =
             ]
         , div [ class "uk-padding" ]
             [ View.Input.viewWithButton
-                [ onInput tagInputMsg, value buffer, placeholder "enter a tag" ]
+                [ onInput tagInputMsg, value buffer, placeholder inputPlaceholder ]
                 Data.Button.Add
                 createTagMsg
             , View.Tags.viewList
