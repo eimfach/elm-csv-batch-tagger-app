@@ -658,10 +658,13 @@ update msg model =
 
                                                 Date ->
                                                     if isEnglishLocale model.locale then
-                                                        Nothing
+                                                        Just (compareDate parseIso8601Date)
+
+                                                    else if isGermanLocale model.locale then
+                                                        Just (compareDate parseEuropeanDateToPosix)
 
                                                     else
-                                                        Just compareEuropeanDate
+                                                        Nothing
 
                                                 Currency currency ->
                                                     Nothing
@@ -714,7 +717,7 @@ updateEvaluateDataFormats model =
 
                                 Nothing ->
                                     if isGermanLocale model.locale then
-                                        case getColumnDataWithParser europeanDateToPosixParser colIndex tableData.rows of
+                                        case getColumnDataWithParser parseEuropeanDateToPosix colIndex tableData.rows of
                                             Just posixList ->
                                                 updateDataFormat column Date
 
@@ -1147,23 +1150,23 @@ compareTwoListsByIndexWith index comparison firstList lastList =
 
 compareWithParser : Parser.Parser comparable -> Comparison
 compareWithParser parse first next =
-    case ( Parser.run parse first, Parser.run parse next ) of
-        ( Ok firstFloat, Ok nextFloat ) ->
+    case ( Parser.run parse first |> Result.toMaybe, Parser.run parse next |> Result.toMaybe ) of
+        ( Just firstFloat, Just nextFloat ) ->
             compare firstFloat nextFloat
 
-        ( Err _, Ok nextFloat ) ->
+        ( Nothing, Just nextFloat ) ->
             GT
 
-        ( Ok firstFloat, Err _ ) ->
+        ( Just firstFloat, Nothing ) ->
             LT
 
-        ( Err _, Err _ ) ->
+        ( Nothing, Nothing ) ->
             LT
 
 
-compareEuropeanDate : Comparison
-compareEuropeanDate first next =
-    case ( Parser.run europeanDateToPosixParser first |> Result.toMaybe, Parser.run europeanDateToPosixParser next |> Result.toMaybe ) of
+compareDate : Parser.Parser Time.Posix -> Comparison
+compareDate parseDate_ first next =
+    case ( Parser.run parseDate_ first |> Result.toMaybe, Parser.run parseDate_ next |> Result.toMaybe ) of
         ( Just firstPosix, Just nextPosix ) ->
             Time.Extra.compare firstPosix nextPosix
 
@@ -1177,8 +1180,20 @@ compareEuropeanDate first next =
             LT
 
 
-europeanDateToPosixParser : Parser.Parser Time.Posix
-europeanDateToPosixParser =
+parseIso8601Date : Parser.Parser Time.Posix
+parseIso8601Date =
+    Parser.succeed (\a b c -> a ++ "-" ++ b ++ "-")
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.symbol "-"
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.symbol "-"
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.end
+        |> Parser.andThen parseIso8601DateToPosix
+
+
+parseEuropeanDateToPosix : Parser.Parser Time.Posix
+parseEuropeanDateToPosix =
     let
         separators =
             [ Parser.symbol "/", Parser.symbol "-", Parser.symbol ".", Parser.spaces ]
@@ -1190,12 +1205,12 @@ europeanDateToPosixParser =
         |. Parser.oneOf separators
         |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
         |. Parser.end
-        |> Parser.andThen convertEuropeanDateToISO8601String
-        |> Parser.andThen convertIso8601DateToPosix
+        |> Parser.andThen parseEuropeanDateToISO8601String
+        |> Parser.andThen parseIso8601DateToPosix
 
 
-convertIso8601DateToPosix : String -> Parser.Parser Time.Posix
-convertIso8601DateToPosix date =
+parseIso8601DateToPosix : String -> Parser.Parser Time.Posix
+parseIso8601DateToPosix date =
     {- UTC Zone is hard coded for now -}
     case Time.Extra.fromIso8601Date Time.utc date of
         Just aPosix ->
@@ -1205,8 +1220,8 @@ convertIso8601DateToPosix date =
             Parser.problem "Invalid ISO8601 Encoding"
 
 
-convertEuropeanDateToISO8601String : ( String, String, String ) -> Parser.Parser String
-convertEuropeanDateToISO8601String ( day, month, year ) =
+parseEuropeanDateToISO8601String : ( String, String, String ) -> Parser.Parser String
+parseEuropeanDateToISO8601String ( day, month, year ) =
     case ( String.toInt month, String.toInt day ) of
         ( Just monthVal, Just dayVal ) ->
             if monthVal > 12 || dayVal > 31 then
