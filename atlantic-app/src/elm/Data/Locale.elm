@@ -13,6 +13,69 @@ type alias Translation =
     Locale -> String
 
 
+isEnglishLocale : Locale -> Bool
+isEnglishLocale locale =
+    locale == EN
+
+
+isGermanLocale : Locale -> Bool
+isGermanLocale locale =
+    locale == DE
+
+
+getEnglishLocale : Locale
+getEnglishLocale =
+    EN
+
+
+getGermanLocale : Locale
+getGermanLocale =
+    DE
+
+
+getDefaultLocale : Locale
+getDefaultLocale =
+    EN
+
+
+encodeLocale : Locale -> Encode.Value
+encodeLocale locale =
+    case locale of
+        DE ->
+            Encode.string "DE"
+
+        EN ->
+            Encode.string "EN"
+
+
+createLocaleDecoder : String -> Decode.Decoder Locale
+createLocaleDecoder encodedFormat =
+    case parseLocale encodedFormat of
+        Ok locale ->
+            Decode.succeed locale
+
+        Err err ->
+            Decode.fail err
+
+
+parseLocale : String -> Result String Locale
+parseLocale locale =
+    case locale of
+        "DE" ->
+            Ok DE
+
+        "EN" ->
+            Ok EN
+
+        _ ->
+            Err "Invalid locale encoding"
+
+
+localeDecoder : Decode.Decoder Locale
+localeDecoder =
+    Decode.string |> Decode.andThen createLocaleDecoder
+
+
 
 -- "Tag already exists"
 -- "There was an error reading your file : "
@@ -26,7 +89,6 @@ type alias Translation =
 -- "expecting float number"
 -- "There are no records yet to choose from, please select a file."
 -- "  Records are processed in order provided by your file."
--- "There are no records yet to choose from, please select a file."
 -- "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
 
 
@@ -258,66 +320,3 @@ translateApplyTags locale count =
  : Translation
  : Translation        
  --}
-
-
-isEnglishLocale : Locale -> Bool
-isEnglishLocale locale =
-    locale == EN
-
-
-isGermanLocale : Locale -> Bool
-isGermanLocale locale =
-    locale == DE
-
-
-getEnglishLocale : Locale
-getEnglishLocale =
-    EN
-
-
-getGermanLocale : Locale
-getGermanLocale =
-    DE
-
-
-getDefaultLocale : Locale
-getDefaultLocale =
-    EN
-
-
-encodeLocale : Locale -> Encode.Value
-encodeLocale locale =
-    case locale of
-        DE ->
-            Encode.string "DE"
-
-        EN ->
-            Encode.string "EN"
-
-
-createLocaleDecoder : String -> Decode.Decoder Locale
-createLocaleDecoder encodedFormat =
-    case parseLocale encodedFormat of
-        Ok locale ->
-            Decode.succeed locale
-
-        Err err ->
-            Decode.fail err
-
-
-parseLocale : String -> Result String Locale
-parseLocale locale =
-    case locale of
-        "DE" ->
-            Ok DE
-
-        "EN" ->
-            Ok EN
-
-        _ ->
-            Err "Invalid locale encoding"
-
-
-localeDecoder : Decode.Decoder Locale
-localeDecoder =
-    Decode.string |> Decode.andThen createLocaleDecoder

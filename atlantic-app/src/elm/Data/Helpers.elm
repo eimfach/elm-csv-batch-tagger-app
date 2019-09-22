@@ -1,10 +1,10 @@
-module Data.Helpers exposing (..)
+module Data.Helpers exposing (isResultOk, maybeToBool)
 
 
 maybeToBool : Maybe a -> Bool
 maybeToBool aMaybe =
     case aMaybe of
-        Just something ->
+        Just _ ->
             True
 
         Nothing ->

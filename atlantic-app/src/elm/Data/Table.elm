@@ -1,7 +1,7 @@
-module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWithParser, prependCellToRow)
+module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow)
 
 import Data.Alias exposing (ColumnHeadingName, Tag)
-import Data.Helpers exposing (isResultOk, maybeToBool)
+import Data.Helpers exposing (isResultOk)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra
@@ -125,15 +125,29 @@ getColumnData columnIndex records =
     List.foldl (.cells >> List.Extra.getAt columnIndex >> Maybe.withDefault "" >> List.singleton >> List.append) [] records
 
 
-getColumnDataWithParser : Parser.Parser Float -> Int -> List Row -> Maybe (List Float)
-getColumnDataWithParser parseFloat columnIndex records =
+getColumnDataWithParser : Parser.Parser a -> Int -> List Row -> Maybe (List a)
+getColumnDataWithParser parser columnIndex records =
     let
         columnData =
             getColumnData columnIndex records
-                |> List.map (Parser.run parseFloat)
+                |> List.map (Parser.run parser)
     in
     if List.all isResultOk columnData then
         Just (List.map Result.toMaybe columnData |> List.filterMap identity)
 
     else
         Nothing
+
+
+getColumnDataWith : (String -> Maybe a) -> Int -> List Row -> Maybe (List a)
+getColumnDataWith parser columnIndex records =
+    let
+        columnData =
+            getColumnData columnIndex records
+                |> List.map parser
+    in
+    if List.any ((==) Nothing) columnData then
+        Nothing
+
+    else
+        Just (List.filterMap identity columnData)

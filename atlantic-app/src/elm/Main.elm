@@ -4,10 +4,10 @@ import Browser
 import Csv
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
-import Data.Helpers exposing (isResultOk, maybeToBool)
+import Data.Helpers exposing (maybeToBool)
 import Data.Locale exposing (..)
 import Data.Modal
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeRow, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWithParser, prependCellToRow)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
@@ -23,6 +23,8 @@ import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 import Section.FileUpload
 import Section.ManageTags
 import Set exposing (Set)
+import Time
+import Time.Extra
 import View.Modal as Modal
 import View.NavBar as NavBar
 import View.Table as Table
@@ -428,14 +430,14 @@ update msg model =
                         newModel =
                             case parseCsvString ';' decodedData of
                                 Ok csv ->
-                                    createTableDataFromCsv csv model |> updateSetDataFormats
+                                    createTableDataFromCsv csv model |> updateEvaluateDataFormats
 
                                 Err _ ->
                                     case parseCsvString ',' decodedData of
                                         Ok csv ->
-                                            createTableDataFromCsv csv model |> updateSetDataFormats
+                                            createTableDataFromCsv csv model |> updateEvaluateDataFormats
 
-                                        Err err ->
+                                        Err _ ->
                                             updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| translateErrorParsingYourFile model.locale) model
                     in
                     ( newModel
@@ -641,8 +643,34 @@ update msg model =
                     case ListExtra.elemIndex column headers of
                         Just colummnIndex ->
                             let
+                                comparison =
+                                    case Dict.get column model.dataFormats of
+                                        Just dataFormat ->
+                                            case dataFormat of
+                                                Text ->
+                                                    Nothing
+
+                                                Float ->
+                                                    Just (compareWithParser parseFloat)
+
+                                                Integer ->
+                                                    Just (compareWithParser parseInt)
+
+                                                Date ->
+                                                    if isEnglishLocale model.locale then
+                                                        Nothing
+
+                                                    else
+                                                        Just compareEuropeanDate
+
+                                                Currency currency ->
+                                                    Nothing
+
+                                        Nothing ->
+                                            Nothing
+
                                 sortedRows =
-                                    sort2dListByColumn colummnIndex (rowPlain rows)
+                                    sort2dListByColumnWith colummnIndex comparison (rowPlain rows)
                                         |> List.map Row
 
                                 newTableDataTagged =
@@ -670,7 +698,7 @@ updateSetDefaultTags locale model =
     { model | tags = Set.fromList <| translateDefaultTags locale }
 
 
-updateSetDataFormats model =
+updateEvaluateDataFormats model =
     case getOriginalTableData model of
         Just tableData ->
             List.indexedMap
@@ -680,7 +708,21 @@ updateSetDataFormats model =
                             updateDataFormat column Float
 
                         Nothing ->
-                            updateDataFormat column Text
+                            case getColumnDataWithParser parseInt colIndex tableData.rows of
+                                Just intList ->
+                                    updateDataFormat column Integer
+
+                                Nothing ->
+                                    if isGermanLocale model.locale then
+                                        case getColumnDataWithParser europeanDateToPosixParser colIndex tableData.rows of
+                                            Just posixList ->
+                                                updateDataFormat column Date
+
+                                            Nothing ->
+                                                updateDataFormat column Text
+
+                                    else
+                                        updateDataFormat column Text
                 )
                 tableData.headers
                 |> List.foldl (\updatePart newModel -> updatePart newModel) model
@@ -1078,16 +1120,20 @@ setCSVSemicolonsInList aList =
         aList
 
 
-sort2dListByColumn : Int -> List (List String) -> List (List String)
-sort2dListByColumn index the2dList =
-    List.sortWith (compareTwoListsByIndex index) the2dList
+sort2dListByColumnWith : Int -> Maybe Comparison -> List (List String) -> List (List String)
+sort2dListByColumnWith index comparison the2dList =
+    List.sortWith (compareTwoListsByIndexWith index comparison) the2dList
 
 
-compareTwoListsByIndex : Int -> List String -> List String -> Order
-compareTwoListsByIndex index firstList lastList =
+compareTwoListsByIndexWith : Int -> Maybe Comparison -> List String -> List String -> Order
+compareTwoListsByIndexWith index comparison firstList lastList =
+    let
+        compare_ =
+            Maybe.withDefault compare comparison
+    in
     case ( ListExtra.getAt index firstList, ListExtra.getAt index lastList ) of
         ( Just firstItem, Just nextItem ) ->
-            compare firstItem nextItem
+            compare_ firstItem nextItem
 
         ( Nothing, Just nextItem ) ->
             GT
@@ -1097,6 +1143,97 @@ compareTwoListsByIndex index firstList lastList =
 
         ( Nothing, Nothing ) ->
             LT
+
+
+compareWithParser : Parser.Parser comparable -> Comparison
+compareWithParser parse first next =
+    case ( Parser.run parse first, Parser.run parse next ) of
+        ( Ok firstFloat, Ok nextFloat ) ->
+            compare firstFloat nextFloat
+
+        ( Err _, Ok nextFloat ) ->
+            GT
+
+        ( Ok firstFloat, Err _ ) ->
+            LT
+
+        ( Err _, Err _ ) ->
+            LT
+
+
+compareEuropeanDate : Comparison
+compareEuropeanDate first next =
+    case ( Parser.run europeanDateToPosixParser first |> Result.toMaybe, Parser.run europeanDateToPosixParser next |> Result.toMaybe ) of
+        ( Just firstPosix, Just nextPosix ) ->
+            Time.Extra.compare firstPosix nextPosix
+
+        ( Nothing, Just nextFloat ) ->
+            GT
+
+        ( Just firstFloat, Nothing ) ->
+            LT
+
+        ( Nothing, Nothing ) ->
+            LT
+
+
+europeanDateToPosixParser : Parser.Parser Time.Posix
+europeanDateToPosixParser =
+    let
+        separators =
+            [ Parser.symbol "/", Parser.symbol "-", Parser.symbol ".", Parser.spaces ]
+    in
+    Parser.succeed (\day month year -> ( day, month, year ))
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.oneOf separators
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.oneOf separators
+        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |. Parser.end
+        |> Parser.andThen convertEuropeanDateToISO8601String
+        |> Parser.andThen convertIso8601DateToPosix
+
+
+convertIso8601DateToPosix : String -> Parser.Parser Time.Posix
+convertIso8601DateToPosix date =
+    {- UTC Zone is hard coded for now -}
+    case Time.Extra.fromIso8601Date Time.utc date of
+        Just aPosix ->
+            Parser.succeed aPosix
+
+        Nothing ->
+            Parser.problem "Invalid ISO8601 Encoding"
+
+
+convertEuropeanDateToISO8601String : ( String, String, String ) -> Parser.Parser String
+convertEuropeanDateToISO8601String ( day, month, year ) =
+    case ( String.toInt month, String.toInt day ) of
+        ( Just monthVal, Just dayVal ) ->
+            if monthVal > 12 || dayVal > 31 then
+                Parser.problem <|
+                    "invalid day or month value in date format; day is: "
+                        ++ day
+                        ++ " month is: "
+                        ++ month
+
+            else
+                Parser.succeed <| year ++ "-" ++ month ++ "-" ++ day
+
+        _ ->
+            Parser.problem "invalid day or month value in date format"
+
+
+parseInt : Parser.Parser Int
+parseInt =
+    Parser.oneOf
+        [ Parser.succeed negate
+            |. Parser.symbol "-"
+            |= Parser.int
+            |. Parser.end
+        , Parser.succeed identity
+            |= Parser.int
+            |. Parser.end
+        ]
 
 
 parseFloat : Parser.Parser Float

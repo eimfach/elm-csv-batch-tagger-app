@@ -1,7 +1,7 @@
 module Data.Button exposing (ActionType(..), Alignment(..), Size(..), Text, Type(..))
 
 
-type ActionType {- TODO: rename this, it refers to an icon not an action  .. or does it ? -}
+type ActionType
     = Add
     | Remove
     | NoActionType
