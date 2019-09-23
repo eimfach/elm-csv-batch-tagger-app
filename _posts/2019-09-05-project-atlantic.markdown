@@ -16,4 +16,4 @@ date: '2018-08-29 10:26'
 - [x] Case insensitive search
 - [ ] Drag and Drop
 - [ ] Sort tables
--- [ ] Choose Dataformat dialog: default value in dropdown, and reclicking it does not trigger Msg
+- [ ] Add decoder for previous `TableDataTagged` (without field `dataFormats`)

@@ -1,4 +1,4 @@
-module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTaggedRecords)
+module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTaggedRecords)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -88,8 +88,16 @@ localeDecoder =
 -- Select a tag to tag your records:
 -- "expecting float number"
 -- "There are no records yet to choose from, please select a file."
--- "  Records are processed in order provided by your file."
--- "    How Batch Tagging works: Choose a column and insert a keyword to match datasets which have these keyword in a cell. Every matching dataset is then tagged by the tag you choose next."
+
+
+translateNoRecordsToChooseFromSelectAfile : Translation
+translateNoRecordsToChooseFromSelectAfile locale =
+    case locale of
+        EN ->
+            "There are no records to choose from, please select a file."
+
+        DE ->
+            "Es sind keine Einträge vorhanden, bitte wähle eine Datei aus."
 
 
 translateDefaultTags : Locale -> List String
@@ -132,6 +140,17 @@ translateCancel locale =
             "Abbrechen"
 
 
+translateHowManualTaggingWorks : Translation
+translateHowManualTaggingWorks locale =
+    case locale of
+        EN ->
+            "Records are processed in order provided by your file."
+
+        DE ->
+            "Einträge werden in der selben Reihenfolge wie in Datei verarbeitet."
+
+
+translateHowBatchTaggingWorks : Translation
 translateHowBatchTaggingWorks locale =
     case locale of
         EN ->

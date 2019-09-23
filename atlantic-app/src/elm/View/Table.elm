@@ -2,6 +2,7 @@ module View.Table exposing (view, viewSingle, viewWithTagData)
 
 import Data.Alias
 import Data.Table exposing (flattenRows, prependCellToRow)
+import Dict exposing (Dict)
 import Html exposing (Html, div, h3, p, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
@@ -40,7 +41,7 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : msg -> { tag : Data.Alias.Tag, headers : List ( Data.Alias.ColumnHeadingName, msg ), rows : List Data.Table.Row } -> Html msg
+viewWithTagData : msg -> { tag : Data.Alias.Tag, headers : List ( Data.Alias.ColumnHeadingName, msg ), rows : List Data.Table.Row, dataFormats : Dict Data.Alias.ColumnHeadingName Data.Table.DataFormat } -> Html msg
 viewWithTagData exportAction { tag, headers, rows } =
     let
         plainPreparedRows =

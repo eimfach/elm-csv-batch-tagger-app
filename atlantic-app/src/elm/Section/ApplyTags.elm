@@ -1,6 +1,7 @@
 module Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
 
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern)
+import Data.Locale as Locale
 import Data.Table exposing (Row)
 import Dict exposing (Dict)
 import Html exposing (div, p, span, text)
@@ -13,12 +14,12 @@ import View.Autocomplete
 import View.Table
 
 
-viewManualTaggingTab : List ColumnHeadingName -> List String -> Html.Html msg
-viewManualTaggingTab columns records =
+viewManualTaggingTab : Locale.Locale -> List ColumnHeadingName -> List String -> Html.Html msg
+viewManualTaggingTab locale columns records =
     let
         content =
             if List.isEmpty records then
-                [ text "There are no records yet to choose from, please select a file." ]
+                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
 
             else
                 [ p
@@ -26,7 +27,7 @@ viewManualTaggingTab columns records =
                     [ span
                         [ class "uk-label uk-text-small" ]
                         [ text "NOTE" ]
-                    , text "  Records are processed in order provided by your file."
+                    , text <| "  " ++ Locale.translateHowManualTaggingWorks locale
                     ]
                 , View.Table.viewSingle
                     []
@@ -37,12 +38,12 @@ viewManualTaggingTab columns records =
     div [] content
 
 
-viewBatchTaggingTab : String -> String -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
-viewBatchTaggingTab placeholderText helpText batchTaggingOptions inputAction columns records =
+viewBatchTaggingTab : Locale.Locale -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTaggingTab locale batchTaggingOptions inputAction columns records =
     let
         content =
             if List.isEmpty records then
-                [ text "There are no records yet to choose from, please select a file." ]
+                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
 
             else
                 [ p
@@ -50,16 +51,16 @@ viewBatchTaggingTab placeholderText helpText batchTaggingOptions inputAction col
                     [ span
                         [ class "uk-label uk-text-small" ]
                         [ text "NOTE" ]
-                    , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ helpText ]
+                    , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateHowBatchTaggingWorks locale ]
                     ]
-                , viewBatchTagging placeholderText batchTaggingOptions inputAction columns records
+                , viewBatchTagging locale batchTaggingOptions inputAction columns records
                 ]
     in
     div [] content
 
 
-viewBatchTagging : String -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
-viewBatchTagging placeholderText batchTaggingOptions inputAction columns records =
+viewBatchTagging : Locale.Locale -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTagging locale batchTaggingOptions inputAction columns records =
     let
         autoTagger =
             columns
@@ -74,7 +75,7 @@ viewBatchTagging placeholderText batchTaggingOptions inputAction columns records
                                 options =
                                     Set.fromList <| Data.Table.getColumnData index records
                             in
-                            Html.Lazy.lazy6 viewBatchTaggingInput column placeholderText ("autoTagger" ++ String.fromInt index) val options (inputAction column)
+                            Html.Lazy.lazy6 viewBatchTaggingInput column locale ("autoTagger" ++ String.fromInt index) val options (inputAction column)
                         )
                     )
     in
@@ -90,11 +91,11 @@ viewBatchTagging placeholderText batchTaggingOptions inputAction columns records
             ]
 
 
-viewBatchTaggingInput : String -> String -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
-viewBatchTaggingInput labelText placeholderText idVal val options action =
+viewBatchTaggingInput : String -> Locale.Locale -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput labelText locale idVal val options action =
     View.Autocomplete.view
         labelText
         val
         idVal
-        [ placeholder placeholderText, onInput action ]
+        [ placeholder (Locale.translateSelectAKeywordOrRegex locale), onInput action ]
         options

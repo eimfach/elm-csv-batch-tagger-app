@@ -7,16 +7,17 @@ import Data.Button
 import Data.Helpers exposing (maybeToBool)
 import Data.Locale exposing (..)
 import Data.Modal
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow)
+import Data.Parsers exposing (..)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
-import Html.Events exposing (on, onClick, onInput)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
-import Parser exposing ((|.), (|=))
+import Parser
 import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
 import Regex
 import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
@@ -82,31 +83,6 @@ type ModalContent
     | ViewInfo String
 
 
-type DataFormat
-    = Text
-    | Float
-    | Integer
-    | Date
-    | Currency Currency
-
-
-type Currency
-    = Dollar
-    | Euro
-
-
-type DateFormat
-    = DDMMYYYY Separator
-    | YYYYMMDD Separator
-
-
-type Separator
-    = Slash
-    | Dot
-    | Space
-    | Dash
-
-
 {-| data of type Bucket can be either a single instance of type `a`,
 or a List of type `a`
 -}
@@ -129,7 +105,6 @@ type alias Model =
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
-    , dataFormats : Dict ColumnHeadingName DataFormat
     , optionTagging : TaggingOption
     , showModal : Maybe (Data.Modal.State ModalContent)
     }
@@ -173,9 +148,6 @@ init flags =
         batchTaggingOptions =
             Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "batchTaggingOptions" (Decode.dict Decode.string)) flags
 
-        dataFormats =
-            Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "dataFormats" (Decode.dict dataFormatDecoder)) flags
-
         showModal =
             Result.withDefault Nothing <| Decode.decodeValue (Decode.field "showModal" (Decode.nullable (Data.Modal.createStateDecoder modalContentDecoder))) flags
     in
@@ -188,7 +160,6 @@ init flags =
       , tableData = tableData
       , tableDataTagged = tableDataTagged
       , batchTaggingOptions = batchTaggingOptions
-      , dataFormats = dataFormats
       , optionTagging = BatchTagging
       , showModal = showModal
       }
@@ -218,7 +189,6 @@ encodeModel model =
         , ( "tableData", Encode.list encodeTableData model.tableData )
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
-        , ( "dataFormats", Encode.dict identity encodeDataFormat model.dataFormats )
         , ( "showModal", encodeShowModal model.showModal )
         ]
 
@@ -268,68 +238,6 @@ encodeModalContent modalContent_ =
                 ]
 
 
-encodeDataFormat : DataFormat -> Encode.Value
-encodeDataFormat dataFormat_ =
-    case dataFormat_ of
-        Text ->
-            Encode.string "text"
-
-        Float ->
-            Encode.string "float"
-
-        Integer ->
-            Encode.string "integer"
-
-        Date ->
-            Encode.string "date"
-
-        Currency Euro ->
-            Encode.string "currency-euro"
-
-        Currency Dollar ->
-            Encode.string "currency-dollar"
-
-
-dataFormatDecoder : Decode.Decoder DataFormat
-dataFormatDecoder =
-    Decode.string |> Decode.andThen createDataFormatDecoder
-
-
-createDataFormatDecoder : String -> Decode.Decoder DataFormat
-createDataFormatDecoder encodedFormat =
-    case parseDataFormat encodedFormat of
-        Ok dataFormat_ ->
-            Decode.succeed dataFormat_
-
-        Err err ->
-            Decode.fail err
-
-
-parseDataFormat : String -> Result String DataFormat
-parseDataFormat encodedFormat =
-    case encodedFormat of
-        "text" ->
-            Ok Text
-
-        "float" ->
-            Ok Float
-
-        "integer" ->
-            Ok Integer
-
-        "date" ->
-            Ok Date
-
-        "currency-euro" ->
-            Ok (Currency Euro)
-
-        "currency-dollar" ->
-            Ok (Currency Dollar)
-
-        _ ->
-            Err "Invalid ModalContent Encoding"
-
-
 
 -- UPDATE
 
@@ -349,7 +257,7 @@ type Msg
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
     | TableDownload TableDataTagged
-    | SelectMatchingRecords (List ColumnHeadingName) Tag (List Row)
+    | ShowMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
 
 
@@ -430,17 +338,17 @@ update msg model =
                         newModel =
                             case parseCsvString ';' decodedData of
                                 Ok csv ->
-                                    createTableDataFromCsv csv model |> updateEvaluateDataFormats
+                                    createTableDataFromCsv csv model
 
                                 Err _ ->
                                     case parseCsvString ',' decodedData of
                                         Ok csv ->
-                                            createTableDataFromCsv csv model |> updateEvaluateDataFormats
+                                            createTableDataFromCsv csv model
 
                                         Err _ ->
                                             updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| translateErrorParsingYourFile model.locale) model
                     in
-                    ( newModel
+                    ( newModel |> updateResetBatchTaggingOptions
                     , Cmd.none
                     )
 
@@ -466,7 +374,7 @@ update msg model =
                     let
                         updatedTaggedTableData =
                             tableDataTaggedAndPrepared
-                                |> List.map (mapRowToTag theTag aTableRow)
+                                |> List.map (mapRowToTag theTag aTableRow >> Data.Table.detectDataFormats)
 
                         updatedOriginRows =
                             Maybe.withDefault [] (List.tail tableDataOrigin.rows)
@@ -491,7 +399,7 @@ update msg model =
                                             updatedRows =
                                                 List.concat [ table.rows, someTableRows ]
                                         in
-                                        TableDataTagged theTag commonHeaders updatedRows
+                                        Data.Table.detectDataFormats (TableDataTagged theTag commonHeaders updatedRows Dict.empty)
 
                                     else
                                         table
@@ -565,7 +473,7 @@ update msg model =
             in
             ( model, Download.string (tag ++ "-" ++ translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
 
-        SelectMatchingRecords headers tag rows ->
+        ShowMatchingRecords headers tag rows ->
             let
                 columnSearchPatternCount =
                     Dict.size model.batchTaggingOptions
@@ -639,34 +547,27 @@ update msg model =
                     ListExtra.findIndex (.tag >> (==) theTagToLookup) currentTableDataTaggedList
             in
             case ( currentTableDataTaggedByTag, indexCurrentTableDataTaggedByTag ) of
-                ( Just { tag, headers, rows }, Just theIndexCurrentTableDataTaggedByTag ) ->
+                ( Just { tag, headers, rows, dataFormats }, Just theIndexCurrentTableDataTaggedByTag ) ->
                     case ListExtra.elemIndex column headers of
                         Just colummnIndex ->
                             let
                                 comparison =
-                                    case Dict.get column model.dataFormats of
+                                    case Dict.get column dataFormats of
                                         Just dataFormat ->
                                             case dataFormat of
-                                                Text ->
+                                                Data.Table.Text ->
                                                     Nothing
 
-                                                Float ->
+                                                Data.Table.Float ->
                                                     Just (compareWithParser parseFloat)
 
-                                                Integer ->
+                                                Data.Table.Integer ->
                                                     Just (compareWithParser parseInt)
 
-                                                Date ->
-                                                    if isEnglishLocale model.locale then
-                                                        Just (compareDate parseIso8601Date)
+                                                Data.Table.Date ->
+                                                    Just (compareDate parseAnySupportedDate)
 
-                                                    else if isGermanLocale model.locale then
-                                                        Just (compareDate parseEuropeanDateToPosix)
-
-                                                    else
-                                                        Nothing
-
-                                                Currency currency ->
+                                                Data.Table.Currency currency ->
                                                     Nothing
 
                                         Nothing ->
@@ -677,7 +578,7 @@ update msg model =
                                         |> List.map Row
 
                                 newTableDataTagged =
-                                    TableDataTagged tag headers sortedRows
+                                    TableDataTagged tag headers sortedRows dataFormats
 
                                 newTableDataTaggedList =
                                     ListExtra.setAt theIndexCurrentTableDataTaggedByTag newTableDataTagged currentTableDataTaggedList
@@ -701,44 +602,6 @@ updateSetDefaultTags locale model =
     { model | tags = Set.fromList <| translateDefaultTags locale }
 
 
-updateEvaluateDataFormats model =
-    case getOriginalTableData model of
-        Just tableData ->
-            List.indexedMap
-                (\colIndex column ->
-                    case getColumnDataWithParser parseFloat colIndex tableData.rows of
-                        Just floatList ->
-                            updateDataFormat column Float
-
-                        Nothing ->
-                            case getColumnDataWithParser parseInt colIndex tableData.rows of
-                                Just intList ->
-                                    updateDataFormat column Integer
-
-                                Nothing ->
-                                    if isGermanLocale model.locale then
-                                        case getColumnDataWithParser parseEuropeanDateToPosix colIndex tableData.rows of
-                                            Just posixList ->
-                                                updateDataFormat column Date
-
-                                            Nothing ->
-                                                updateDataFormat column Text
-
-                                    else
-                                        updateDataFormat column Text
-                )
-                tableData.headers
-                |> List.foldl (\updatePart newModel -> updatePart newModel) model
-
-        Nothing ->
-            updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo "Table Data lookup failed. No Data given.") model
-
-
-updateDataFormat : ColumnHeadingName -> DataFormat -> Model -> Model
-updateDataFormat column format model =
-    { model | dataFormats = Dict.insert column format model.dataFormats }
-
-
 updateShowModalInfo : Data.Modal.Title -> ModalContent -> Model -> Model
 updateShowModalInfo title content model =
     { model | showModal = Just (Data.Modal.State content title Data.Modal.RegularView) }
@@ -752,6 +615,11 @@ updateShowModal displayProperties title content model =
 updateCloseModal : Model -> Model
 updateCloseModal model =
     { model | showModal = Nothing }
+
+
+updateResetBatchTaggingOptions : Model -> Model
+updateResetBatchTaggingOptions model =
+    { model | batchTaggingOptions = Dict.empty }
 
 
 
@@ -903,16 +771,25 @@ viewTaggingSection locale taggingOption batchTaggingOptions tags headers row row
                     MapRecordToTag (Single row) tag
 
                 BatchTagging ->
-                    SelectMatchingRecords headers tag rows
+                    ShowMatchingRecords headers tag rows
+
+        ( viewTagActionDescription, viewTagCloud ) =
+            if List.isEmpty rows then
+                ( text "", text "" )
+
+            else
+                ( div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
+                , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+                )
 
         ( singleIsActiveTab, viewTab ) =
             case taggingOption of
                 {--tab selection is naive--}
                 SingleTagging ->
-                    ( True, viewManualTaggingTab headers row.cells )
+                    ( True, viewManualTaggingTab locale headers row.cells )
 
                 BatchTagging ->
-                    ( False, viewBatchTaggingTab placeholderText helpText batchTaggingOptions SearchPatternInput headers rows )
+                    ( False, viewBatchTaggingTab locale batchTaggingOptions SearchPatternInput headers rows )
     in
     div []
         [ div [ class "uk-position-relative" ]
@@ -941,8 +818,8 @@ viewTaggingSection locale taggingOption batchTaggingOptions tags headers row row
                     ]
                 ]
             , viewTab
-            , div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
-            , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+            , viewTagActionDescription
+            , viewTagCloud
             , hr [ class "uk-divider-icon" ] []
             ]
         ]
@@ -980,16 +857,16 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
 
     else
         let
-            preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row }
+            preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row, dataFormats : Dict ColumnHeadingName Data.Table.DataFormat }
             preparedRows =
                 List.map
-                    (\{ tag, headers, rows } ->
+                    (\{ tag, headers, rows, dataFormats } ->
                         let
                             headersWithSortMsg =
                                 List.map (\column -> ( column, SortTaggedTable tag column )) headers
                                     |> List.append [ ( tagTranslation, NoOp ) ]
                         in
-                        { tag = tag, headers = headersWithSortMsg, rows = List.map (prependCellToRow tag) rows }
+                        { tag = tag, headers = headersWithSortMsg, rows = List.map (prependCellToRow tag) rows, dataFormats = dataFormats }
                     )
                     someTables
 
@@ -999,7 +876,7 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
                         (\tableDataTagged ->
                             Table.viewWithTagData
                                 -- use original header list for Tabledownload, since we modified it before
-                                (TableDownload <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows)
+                                (TableDownload <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows tableDataTagged.dataFormats)
                                 tableDataTagged
                         )
         in
@@ -1055,7 +932,7 @@ setTagInstance theTag headers tableDataTagged =
             List.any (\model -> model.tag == theTag) tableDataTagged
     in
     if not doesInstanceExist then
-        { headers = headers, tag = theTag, rows = [] } :: tableDataTagged
+        { headers = headers, tag = theTag, rows = [], dataFormats = Dict.empty } :: tableDataTagged
 
     else
         tableDataTagged
@@ -1067,12 +944,12 @@ getColIndex columns colName =
 
 
 mapRowToTag : String -> Row -> TableDataTagged -> TableDataTagged
-mapRowToTag aTag aRow { headers, tag, rows } =
+mapRowToTag aTag aRow { headers, tag, rows, dataFormats } =
     if tag == aTag then
-        { headers = headers, tag = tag, rows = aRow :: rows }
+        { headers = headers, tag = tag, rows = aRow :: rows, dataFormats = dataFormats }
 
     else
-        { headers = headers, tag = tag, rows = rows }
+        { headers = headers, tag = tag, rows = rows, dataFormats = dataFormats }
 
 
 rowPlain : List Row -> List (List String)
@@ -1178,101 +1055,3 @@ compareDate parseDate_ first next =
 
         ( Nothing, Nothing ) ->
             LT
-
-
-parseIso8601Date : Parser.Parser Time.Posix
-parseIso8601Date =
-    Parser.succeed (\a b c -> a ++ "-" ++ b ++ "-")
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.symbol "-"
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.symbol "-"
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.end
-        |> Parser.andThen parseIso8601DateToPosix
-
-
-parseEuropeanDateToPosix : Parser.Parser Time.Posix
-parseEuropeanDateToPosix =
-    let
-        separators =
-            [ Parser.symbol "/", Parser.symbol "-", Parser.symbol ".", Parser.spaces ]
-    in
-    Parser.succeed (\day month year -> ( day, month, year ))
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.oneOf separators
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.oneOf separators
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.end
-        |> Parser.andThen parseEuropeanDateToISO8601String
-        |> Parser.andThen parseIso8601DateToPosix
-
-
-parseIso8601DateToPosix : String -> Parser.Parser Time.Posix
-parseIso8601DateToPosix date =
-    {- UTC Zone is hard coded for now -}
-    case Time.Extra.fromIso8601Date Time.utc date of
-        Just aPosix ->
-            Parser.succeed aPosix
-
-        Nothing ->
-            Parser.problem "Invalid ISO8601 Encoding"
-
-
-parseEuropeanDateToISO8601String : ( String, String, String ) -> Parser.Parser String
-parseEuropeanDateToISO8601String ( day, month, year ) =
-    case ( String.toInt month, String.toInt day ) of
-        ( Just monthVal, Just dayVal ) ->
-            if monthVal > 12 || dayVal > 31 then
-                Parser.problem <|
-                    "invalid day or month value in date format; day is: "
-                        ++ day
-                        ++ " month is: "
-                        ++ month
-
-            else
-                Parser.succeed <| year ++ "-" ++ month ++ "-" ++ day
-
-        _ ->
-            Parser.problem "invalid day or month value in date format"
-
-
-parseInt : Parser.Parser Int
-parseInt =
-    Parser.oneOf
-        [ Parser.succeed negate
-            |. Parser.symbol "-"
-            |= Parser.int
-            |. Parser.end
-        , Parser.succeed identity
-            |= Parser.int
-            |. Parser.end
-        ]
-
-
-parseFloat : Parser.Parser Float
-parseFloat =
-    Parser.succeed (\sign left right -> ( sign, left, right ))
-        |= Parser.oneOf
-            [ Parser.map (always "-") (Parser.symbol "-")
-            , Parser.succeed ""
-            ]
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.oneOf
-            [ Parser.symbol "."
-            , Parser.symbol ","
-            ]
-        |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
-        |. Parser.end
-        |> Parser.andThen convertToFloat
-
-
-convertToFloat : ( String, String, String ) -> Parser.Parser Float
-convertToFloat ( sign, first, last ) =
-    case String.toFloat (sign ++ first ++ "." ++ last) of
-        Just float ->
-            Parser.succeed float
-
-        Nothing ->
-            Parser.problem "expecting float number"

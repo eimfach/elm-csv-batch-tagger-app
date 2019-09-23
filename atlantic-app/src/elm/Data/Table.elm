@@ -1,7 +1,9 @@
-module Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow)
+module Data.Table exposing (Cell, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow, setADataFormat)
 
 import Data.Alias exposing (ColumnHeadingName, Tag)
 import Data.Helpers exposing (isResultOk)
+import Data.Parsers exposing (..)
+import Dict exposing (Dict)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra
@@ -23,6 +25,19 @@ type alias Row =
     }
 
 
+type DataFormat
+    = Text
+    | Float
+    | Integer
+    | Date
+    | Currency Currency
+
+
+type Currency
+    = Dollar
+    | Euro
+
+
 
 {- @Data.Table.TableDataTagged deprecated, move tags into Row type -}
 
@@ -31,6 +46,7 @@ type alias TableDataTagged =
     { tag : Tag
     , headers : List ColumnHeadingName
     , rows : List Row
+    , dataFormats : Dict ColumnHeadingName DataFormat
     }
 
 
@@ -49,6 +65,7 @@ encodeTableDataTagged tableData =
         [ ( "tag", Encode.string tableData.tag )
         , ( "headers", Encode.list Encode.string tableData.headers )
         , ( "rows", Encode.list encodeRow tableData.rows )
+        , ( "dataFormats", Encode.dict identity encodeDataFormat tableData.dataFormats )
         ]
 
 
@@ -76,7 +93,16 @@ decodeTableData =
 
 decodeTableDataTagged : Decode.Decoder TableDataTagged
 decodeTableDataTagged =
-    Decode.map3 TableDataTagged
+    Decode.map4 TableDataTagged
+        (Decode.field "tag" Decode.string)
+        (Decode.field "headers" (Decode.list Decode.string))
+        (Decode.field "rows" (Decode.list (Decode.map Row (Decode.field "cells" (Decode.list Decode.string)))))
+        (Decode.field "dataFormats" (Decode.dict dataFormatDecoder))
+
+
+decodeTableDataTaggedWithoutDataFormats : Decode.Decoder TableDataTagged
+decodeTableDataTaggedWithoutDataFormats =
+    Decode.map3 (\tag headers rows -> detectDataFormats <| TableDataTagged tag headers rows Dict.empty)
         (Decode.field "tag" Decode.string)
         (Decode.field "headers" (Decode.list Decode.string))
         (Decode.field "rows" (Decode.list (Decode.map Row (Decode.field "cells" (Decode.list Decode.string)))))
@@ -100,7 +126,7 @@ decodeTableDataTaggedList : Decode.Value -> String -> Result String (List (List 
 decodeTableDataTaggedList decodedValue fieldName =
     let
         tableDataTagged =
-            Decode.decodeValue (Decode.field fieldName (Decode.list (Decode.list decodeTableDataTagged))) decodedValue
+            Decode.decodeValue (Decode.field fieldName (Decode.list (Decode.list <| Decode.oneOf [ decodeTableDataTagged, decodeTableDataTaggedWithoutDataFormats ]))) decodedValue
     in
     case tableDataTagged of
         Ok tableDataTagged_ ->
@@ -108,6 +134,98 @@ decodeTableDataTaggedList decodedValue fieldName =
 
         Err err_ ->
             Err ("Error parsing " ++ fieldName ++ "." ++ "tableDataTagged: " ++ Decode.errorToString err_)
+
+
+encodeDataFormat : DataFormat -> Encode.Value
+encodeDataFormat dataFormat_ =
+    case dataFormat_ of
+        Text ->
+            Encode.string "text"
+
+        Float ->
+            Encode.string "float"
+
+        Integer ->
+            Encode.string "integer"
+
+        Date ->
+            Encode.string "date"
+
+        Currency Euro ->
+            Encode.string "currency-euro"
+
+        Currency Dollar ->
+            Encode.string "currency-dollar"
+
+
+dataFormatDecoder : Decode.Decoder DataFormat
+dataFormatDecoder =
+    Decode.string |> Decode.andThen createDataFormatDecoder
+
+
+createDataFormatDecoder : String -> Decode.Decoder DataFormat
+createDataFormatDecoder encodedFormat =
+    case parseDataFormat encodedFormat of
+        Ok dataFormat_ ->
+            Decode.succeed dataFormat_
+
+        Err err ->
+            Decode.fail err
+
+
+parseDataFormat : String -> Result String DataFormat
+parseDataFormat encodedFormat =
+    case encodedFormat of
+        "text" ->
+            Ok Text
+
+        "float" ->
+            Ok Float
+
+        "integer" ->
+            Ok Integer
+
+        "date" ->
+            Ok Date
+
+        "currency-euro" ->
+            Ok (Currency Euro)
+
+        "currency-dollar" ->
+            Ok (Currency Dollar)
+
+        _ ->
+            Err "Invalid ModalContent Encoding"
+
+
+setADataFormat : ColumnHeadingName -> DataFormat -> TableDataTagged -> TableDataTagged
+setADataFormat column dataFormat taggedTable =
+    { taggedTable | dataFormats = Dict.insert column dataFormat taggedTable.dataFormats }
+
+
+detectDataFormats : TableDataTagged -> TableDataTagged
+detectDataFormats taggedTable =
+    List.indexedMap
+        (\colIndex column ->
+            case getColumnDataWithParser parseFloat colIndex taggedTable.rows of
+                Just _ ->
+                    setADataFormat column Float
+
+                Nothing ->
+                    case getColumnDataWithParser parseInt colIndex taggedTable.rows of
+                        Just _ ->
+                            setADataFormat column Integer
+
+                        Nothing ->
+                            case getColumnDataWithParser parseAnySupportedDate colIndex taggedTable.rows of
+                                Just _ ->
+                                    setADataFormat column Date
+
+                                Nothing ->
+                                    setADataFormat column Text
+        )
+        taggedTable.headers
+        |> List.foldl (\updatePart newTableData -> updatePart newTableData) taggedTable
 
 
 flattenRows : List Row -> List (List String)
