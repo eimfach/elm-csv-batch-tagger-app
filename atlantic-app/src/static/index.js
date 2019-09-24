@@ -27,12 +27,15 @@ var app = Elm.Elm.Main.init({
   flags: startingState
 });
 
+app.ports.getLocale.send(navigator.language ? navigator.language : "en-EN");
+
 app.ports.setStorage.subscribe(function(state) {
   localStorage.setItem('store', JSON.stringify(state));
 });
 
-// TODO: wait for elm runtime to request the locale
-app.ports.getLocale.send(navigator.language ? navigator.language : "en-EN");
+app.ports.deleteStorage.subscribe(function() {
+  localStorage.removeItem('store');
+})
 
 app.ports.fileSelected.subscribe(function (id) {
   var node = document.getElementById(id)

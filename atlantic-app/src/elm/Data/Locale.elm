@@ -1,4 +1,4 @@
-module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTaggedRecords)
+module Data.Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTaggedRecords, translateTitleDeleteLocalData, translateWarningDeleteLocalData)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -115,6 +115,46 @@ translateLocale locale =
 
         DE ->
             "Sprache"
+
+
+translateProceed : Translation
+translateProceed locale =
+    case locale of
+        EN ->
+            "proceed"
+
+        DE ->
+            "fortfahren"
+
+
+translateWarningDeleteLocalData : Translation
+translateWarningDeleteLocalData locale =
+    case locale of
+        EN ->
+            "Warning: Your data will be permanently deleted!"
+
+        DE ->
+            "Warnung: Deine Daten werden permanent gelöscht!"
+
+
+translateTitleDeleteLocalData : Translation
+translateTitleDeleteLocalData locale =
+    case locale of
+        EN ->
+            "Delete your local data"
+
+        DE ->
+            "Deine lokalen Daten löschen"
+
+
+translateDeleteYourLocalData : Translation
+translateDeleteYourLocalData locale =
+    case locale of
+        EN ->
+            "Delete data"
+
+        DE ->
+            "Daten löschen"
 
 
 translateInfoOnHowDataIsStored : Translation

@@ -1,6 +1,7 @@
 port module Main exposing (main)
 
 import Browser
+import Browser.Navigation
 import Csv
 import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
 import Data.Button
@@ -12,7 +13,7 @@ import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDa
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, type_, value)
+import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, type_, value)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -51,6 +52,9 @@ main =
 -- PORT
 
 
+port deleteStorage : () -> Cmd msg
+
+
 port setStorage : Encode.Value -> Cmd msg
 
 
@@ -81,6 +85,7 @@ type UndoStrategy
 type ModalContent
     = ViewMapRecordsToTag (List ColumnHeadingName) (List (List String)) Tag
     | ViewInfo String
+    | ViewWarningDeleteLocalData
 
 
 {-| data of type Bucket can be either a single instance of type `a`,
@@ -213,6 +218,7 @@ modalContentDecoder =
                 (Decode.field "tag" Decode.string)
             )
         , Decode.field "viewInfo" (Decode.string |> Decode.map ViewInfo)
+        , Decode.field "viewWarningDeleteLocalData" (Decode.succeed ViewWarningDeleteLocalData)
         ]
 
 
@@ -237,6 +243,11 @@ encodeModalContent modalContent_ =
                 [ ( "viewInfo", Encode.string someText )
                 ]
 
+        ViewWarningDeleteLocalData ->
+            Encode.object
+                [ ( "viewWarningDeleteLocalData", Encode.null )
+                ]
+
 
 
 -- UPDATE
@@ -244,6 +255,8 @@ encodeModalContent modalContent_ =
 
 type Msg
     = RemoveTag String
+    | ShowDeleteLocalData
+    | DeleteLocalData
     | ToggleLocale
     | SetLocale String
     | TagInput String
@@ -276,6 +289,14 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ShowDeleteLocalData ->
+            ( updateShowModal Data.Modal.RegularView (translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
+            , Cmd.none
+            )
+
+        DeleteLocalData ->
+            ( updateCloseModal model, Cmd.batch [ deleteStorage (), Browser.Navigation.reload ] )
+
         SetLocale val ->
             case val of
                 "en-EN" ->
@@ -651,6 +672,9 @@ viewModalContent locale modalContent =
         ViewInfo info ->
             text info
 
+        ViewWarningDeleteLocalData ->
+            text (translateWarningDeleteLocalData locale)
+
 
 getModalButtons : Locale -> ModalContent -> List (Data.Modal.Button Msg)
 getModalButtons locale modalContent =
@@ -671,6 +695,11 @@ getModalButtons locale modalContent =
 
         ViewInfo info ->
             [ ( Data.Button.Secondary, CloseModal, "OK" )
+            ]
+
+        ViewWarningDeleteLocalData ->
+            [ ( Data.Button.Secondary, DeleteLocalData, translateProceed locale )
+            , ( Data.Button.Primary, CloseModal, translateCancel locale )
             ]
 
 
@@ -723,6 +752,7 @@ view model =
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ translateInfoOnHowDataIsStored model.locale ]
+                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
                 [ Section.FileUpload.view (translateSelectAcsvFile model.locale) (maybeToBool model.file) FileSelected ]
