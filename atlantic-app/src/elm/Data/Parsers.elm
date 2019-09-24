@@ -5,6 +5,14 @@ import Time
 import Time.Extra
 
 
+parseOptionalSpaces : Parser.Parser String
+parseOptionalSpaces =
+    Parser.oneOf
+        [ Parser.map (always "") Parser.spaces
+        , Parser.succeed ""
+        ]
+
+
 parseAnySupportedDate : Parser.Parser Time.Posix
 parseAnySupportedDate =
     Parser.oneOf [ Parser.backtrackable parseIso8601Date, Parser.backtrackable parseEuropeanDateToPosix ]

@@ -82,10 +82,7 @@ parseCurrencyToFloat selectedCurrency =
     in
     Parser.succeed identity
         |= parseChainFloat
-        |. Parser.oneOf
-            [ Parser.map (always "") Parser.spaces
-            , Parser.succeed ""
-            ]
+        |. Data.Parsers.parseOptionalSpaces
         |. parseCurrencySymbol currencySymbol
         |. Parser.end
         |> Parser.andThen Data.Parsers.convertToFloat
@@ -99,17 +96,14 @@ parseCurrency selectedCurrency =
     in
     Parser.succeed identity
         |. parseChainFloat
-        |. Parser.oneOf
-            [ Parser.map (always "") Parser.spaces
-            , Parser.succeed ""
-            ]
+        |. Data.Parsers.parseOptionalSpaces
         |= parseCurrencySymbol currencySymbol
         |. Parser.end
-        |> Parser.andThen createCurrency
+        |> Parser.andThen convertToCurrency
 
 
-createCurrency : String -> Parser.Parser Currency
-createCurrency currency =
+convertToCurrency : String -> Parser.Parser Currency
+convertToCurrency currency =
     case currency of
         "€" ->
             Parser.succeed <| Euro
