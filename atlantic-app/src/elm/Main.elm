@@ -717,7 +717,13 @@ view model =
         , div
             []
             [ div [ class "uk-margin-top" ]
-                [ button [ class "uk-button", onClick ToggleLocale ] [ text <| translateLocale model.locale ++ ": " ++ localeTranslation ] ]
+                [ button [ class "uk-button uk-align-right", onClick ToggleLocale ]
+                    [ text <| translateLocale model.locale ++ ": " ++ localeTranslation ]
+                , span
+                    [ class "uk-label uk-text-small" ]
+                    [ text "NOTE" ]
+                , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ translateInfoOnHowDataIsStored model.locale ]
+                ]
             , div []
                 [ Section.FileUpload.view (translateSelectAcsvFile model.locale) (maybeToBool model.file) FileSelected ]
             , div []
