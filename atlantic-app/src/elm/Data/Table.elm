@@ -1,4 +1,4 @@
-module Data.Table exposing (Cell, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, prependCellToRow, setADataFormat)
+module Data.Table exposing (Cell, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, setADataFormat)
 
 import Data.Alias exposing (ColumnHeadingName, Tag)
 import Data.Helpers exposing (isResultOk)
@@ -7,7 +7,7 @@ import Dict exposing (Dict)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra
-import Parser
+import Parser exposing ((|.), (|=))
 
 
 type alias Cell =
@@ -57,6 +57,68 @@ type alias TableDataTagged =
 -- if one ore multiple columns are ordererd (asc or desc) by default the dataset is ordered without any further doings.
 -- It doesn't matter how much are ordered, the whole dataset goes as sorted but we can't say sorted by which column.
 -- as a result we need to know each columns sorting state and reflect that in the types signature
+
+
+convertCurrencyToSymbol : Currency -> String
+convertCurrencyToSymbol selectedCurrency =
+    case selectedCurrency of
+        Dollar ->
+            "$"
+
+        Euro ->
+            "€"
+
+
+parseCurrencySymbol : String -> Parser.Parser String
+parseCurrencySymbol currencySymbol =
+    Parser.map (always currencySymbol) (Parser.symbol currencySymbol)
+
+
+parseCurrencyToFloat : Currency -> Parser.Parser Float
+parseCurrencyToFloat selectedCurrency =
+    let
+        currencySymbol =
+            convertCurrencyToSymbol selectedCurrency
+    in
+    Parser.succeed identity
+        |= parseChainFloat
+        |. Parser.oneOf
+            [ Parser.map (always "") Parser.spaces
+            , Parser.succeed ""
+            ]
+        |. parseCurrencySymbol currencySymbol
+        |. Parser.end
+        |> Parser.andThen Data.Parsers.convertToFloat
+
+
+parseCurrency : Currency -> Parser.Parser Currency
+parseCurrency selectedCurrency =
+    let
+        currencySymbol =
+            convertCurrencyToSymbol selectedCurrency
+    in
+    Parser.succeed identity
+        |. parseChainFloat
+        |. Parser.oneOf
+            [ Parser.map (always "") Parser.spaces
+            , Parser.succeed ""
+            ]
+        |= parseCurrencySymbol currencySymbol
+        |. Parser.end
+        |> Parser.andThen createCurrency
+
+
+createCurrency : String -> Parser.Parser Currency
+createCurrency currency =
+    case currency of
+        "€" ->
+            Parser.succeed <| Euro
+
+        "$" ->
+            Parser.succeed <| Dollar
+
+        _ ->
+            Parser.problem "currency token expected"
 
 
 encodeTableDataTagged : TableDataTagged -> Encode.Value
@@ -222,7 +284,17 @@ detectDataFormats taggedTable =
                                     setADataFormat column Date
 
                                 Nothing ->
-                                    setADataFormat column Text
+                                    case getColumnDataWithParser (parseCurrency Dollar) colIndex taggedTable.rows of
+                                        Just _ ->
+                                            setADataFormat column (Currency Dollar)
+
+                                        Nothing ->
+                                            case getColumnDataWithParser (parseCurrency Euro) colIndex taggedTable.rows of
+                                                Just _ ->
+                                                    setADataFormat column (Currency Euro)
+
+                                                Nothing ->
+                                                    setADataFormat column Text
         )
         taggedTable.headers
         |> List.foldl (\updatePart newTableData -> updatePart newTableData) taggedTable

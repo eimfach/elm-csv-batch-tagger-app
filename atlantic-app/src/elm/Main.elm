@@ -8,7 +8,7 @@ import Data.Helpers exposing (maybeToBool)
 import Data.Locale exposing (..)
 import Data.Modal
 import Data.Parsers exposing (..)
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, prependCellToRow)
+import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
@@ -568,7 +568,7 @@ update msg model =
                                                     Just (compareDate parseAnySupportedDate)
 
                                                 Data.Table.Currency currency ->
-                                                    Nothing
+                                                    Just (compareWithParser <| parseCurrencyToFloat currency)
 
                                         Nothing ->
                                             Nothing

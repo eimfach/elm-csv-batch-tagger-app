@@ -81,9 +81,9 @@ parseInt =
         ]
 
 
-parseFloat : Parser.Parser Float
-parseFloat =
-    Parser.succeed (\sign left right -> ( sign, left, right ))
+parseChainFloat : Parser.Parser ( String, String, String )
+parseChainFloat =
+    Parser.succeed (\a b c -> ( a, b, c ))
         |= Parser.oneOf
             [ Parser.map (always "-") (Parser.symbol "-")
             , Parser.succeed ""
@@ -94,6 +94,12 @@ parseFloat =
             , Parser.symbol ","
             ]
         |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+
+
+parseFloat : Parser.Parser Float
+parseFloat =
+    Parser.succeed identity
+        |= parseChainFloat
         |. Parser.end
         |> Parser.andThen convertToFloat
 
