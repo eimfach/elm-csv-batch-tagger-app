@@ -374,7 +374,7 @@ update msg model =
                     let
                         updatedTaggedTableData =
                             tableDataTaggedAndPrepared
-                                |> List.map (mapRowToTag theTag aTableRow >> Data.Table.detectDataFormats)
+                                |> List.map (mapRowToTag theTag aTableRow)
 
                         updatedOriginRows =
                             Maybe.withDefault [] (List.tail tableDataOrigin.rows)
@@ -399,7 +399,7 @@ update msg model =
                                             updatedRows =
                                                 List.concat [ table.rows, someTableRows ]
                                         in
-                                        Data.Table.detectDataFormats (TableDataTagged theTag commonHeaders updatedRows Dict.empty)
+                                        Data.Table.detectDataFormats (TableDataTagged theTag table.headers updatedRows table.dataFormats)
 
                                     else
                                         table
@@ -944,12 +944,16 @@ getColIndex columns colName =
 
 
 mapRowToTag : String -> Row -> TableDataTagged -> TableDataTagged
-mapRowToTag aTag aRow { headers, tag, rows, dataFormats } =
-    if tag == aTag then
-        { headers = headers, tag = tag, rows = aRow :: rows, dataFormats = dataFormats }
+mapRowToTag aTag aRow aTaggedTable =
+    if aTaggedTable.tag == aTag then
+        let
+            { headers, tag, rows, dataFormats } =
+                aTaggedTable
+        in
+        TableDataTagged tag headers (aRow :: rows) dataFormats |> Data.Table.detectDataFormats
 
     else
-        { headers = headers, tag = tag, rows = rows, dataFormats = dataFormats }
+        aTaggedTable
 
 
 rowPlain : List Row -> List (List String)

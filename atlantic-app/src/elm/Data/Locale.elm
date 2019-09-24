@@ -84,10 +84,7 @@ localeDecoder =
 -- "TableData lookup failed."
 -- "Please select a file to work with first. Your file may be empty."
 -- "Table Data lookup failed. No Data given."
--- "Choose Dataformats"
--- Select a tag to tag your records:
 -- "expecting float number"
--- "There are no records yet to choose from, please select a file."
 
 
 translateNoRecordsToChooseFromSelectAfile : Translation
