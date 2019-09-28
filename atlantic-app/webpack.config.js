@@ -5,6 +5,7 @@ var HtmlWebpackPlugin = require('html-webpack-plugin')
 var autoprefixer = require('autoprefixer')
 var ExtractTextPlugin = require('extract-text-webpack-plugin')
 var CopyWebpackPlugin = require('copy-webpack-plugin')
+var overrides = require('./webpack.override.config.js')
 var entryPath = path.join(__dirname, 'src/static/index.js')
 var outputPath = path.join(__dirname, 'dist')
 
@@ -15,7 +16,7 @@ var TARGET_ENV = process.env.npm_lifecycle_event === 'build' ? 'production' : 'd
 var outputFilename = TARGET_ENV === 'production' ? '[name]-[hash].js' : '[name].js'
 
 // common webpack config
-var commonConfig = {
+const commonConfig = {
 
   output: {
     path: outputPath,
@@ -48,6 +49,7 @@ var commonConfig = {
   postcss: [ autoprefixer({ browsers: ['last 2 versions'] }) ]
 
 }
+
 
 // additional webpack settings for local env (when invoked by 'npm start')
 if (TARGET_ENV === 'development') {
@@ -92,10 +94,10 @@ if (TARGET_ENV === 'development') {
 if (TARGET_ENV === 'production') {
   console.log('Building for prod...')
 
-  module.exports = merge(commonConfig, {
+  module.exports = merge(commonConfig, overrides.production, {
 
     entry: entryPath,
-
+    
     module: {
       loaders: [
         {
