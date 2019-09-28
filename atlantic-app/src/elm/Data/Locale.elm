@@ -181,7 +181,7 @@ translateCancel : Translation
 translateCancel locale =
     case locale of
         EN ->
-            "Speichern"
+            "Cancel"
 
         DE ->
             "Abbrechen"
