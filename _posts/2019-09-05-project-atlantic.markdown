@@ -18,7 +18,7 @@ date: '2018-08-29 10:26'
 - [ ] Sort tables
 -- [x] Sort int, float, string, date string (ISO8601 and European)
 -- [x] Sort Currencies (Supported: Dollar (`$`) and Euro (`€`) in formats: "3,00 $", "3.00 $", "3,00$", "3.00$")
--- [ ] Support ASC and DESC sorting a table column (currently only ASC)
+-- [x] Support ASC and DESC sorting a table column
 -- [ ] Support parsing of different float separators (like 3.234,00 or 3,450.23)
 - [x] Add decoder for previous `TableDataTagged` (without field `dataFormats`) if some user have the old encoding
 - [ ] Support for multiple files

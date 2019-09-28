@@ -1042,18 +1042,38 @@ setCSVSemicolonsInList aList =
 
 sort2dListByColumnWith : Int -> Maybe Comparison -> List (List String) -> List (List String)
 sort2dListByColumnWith index comparison the2dList =
-    List.sortWith (compareTwoListsByIndexWith index comparison) the2dList
-
-
-compareTwoListsByIndexWith : Int -> Maybe Comparison -> List String -> List String -> Order
-compareTwoListsByIndexWith index comparison firstList lastList =
     let
         compare_ =
             Maybe.withDefault compare comparison
+
+        new2dList =
+            List.sortWith (compareTwoListsByIndexWith index compare_) the2dList
     in
+    if new2dList == the2dList then
+        List.sortWith (compareTwoListsByIndexWith index (flippedComparison compare_)) the2dList
+
+    else
+        new2dList
+
+
+flippedComparison : Comparison -> String -> String -> Order
+flippedComparison compare_ a b =
+    case compare_ a b of
+        LT ->
+            GT
+
+        EQ ->
+            EQ
+
+        GT ->
+            LT
+
+
+compareTwoListsByIndexWith : Int -> Comparison -> List String -> List String -> Order
+compareTwoListsByIndexWith index comparison firstList lastList =
     case ( ListExtra.getAt index firstList, ListExtra.getAt index lastList ) of
         ( Just firstItem, Just nextItem ) ->
-            compare_ firstItem nextItem
+            comparison firstItem nextItem
 
         ( Nothing, Just nextItem ) ->
             GT
