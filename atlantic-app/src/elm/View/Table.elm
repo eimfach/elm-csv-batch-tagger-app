@@ -11,7 +11,7 @@ import View.NavBar as NavBar
 
 viewSingle : List (Html.Attribute msg) -> List String -> List (Html msg) -> Html msg
 viewSingle cellAttr headers record =
-    div []
+    div [ class "uk-overflow-auto" ]
         [ table
             [ class "uk-table uk-table-responsive uk-table-divider" ]
             [ thead []

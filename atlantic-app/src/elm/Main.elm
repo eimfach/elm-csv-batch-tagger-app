@@ -106,7 +106,6 @@ type alias Model =
     , addTagInputBuffer : String
     , addTagInputError : ( String, Bool )
     , fileUploadPointerId : HtmlNodeId
-    , file : Maybe FileData
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
@@ -141,9 +140,6 @@ init flags =
         fileUploadPointerId =
             Result.withDefault "csv-upload" <| Decode.decodeValue (Decode.field "fileUploadPointerId" Decode.string) flags
 
-        file =
-            decodeFileData flags "file"
-
         tableData =
             Result.withDefault [] <| decodeTableDataList flags "tableData"
 
@@ -161,7 +157,6 @@ init flags =
       , addTagInputBuffer = addTagInputBuffer
       , addTagInputError = addTagInputError
       , fileUploadPointerId = fileUploadPointerId
-      , file = file
       , tableData = tableData
       , tableDataTagged = tableDataTagged
       , batchTaggingOptions = batchTaggingOptions
@@ -190,7 +185,6 @@ encodeModel model =
         , ( "addTagInputBuffer", Encode.string model.addTagInputBuffer )
         , ( "addTagInputError", tuple2Encoder Encode.string Encode.bool model.addTagInputError )
         , ( "fileUploadPointerId", Encode.string model.fileUploadPointerId )
-        , ( "file", encodeFileData model.file )
         , ( "tableData", Encode.list encodeTableData model.tableData )
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
@@ -755,7 +749,7 @@ view model =
                 , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
-                [ Section.FileUpload.view (translateSelectAcsvFile model.locale) (maybeToBool model.file) FileSelected ]
+                [ Section.FileUpload.view (translateSelectAcsvFile model.locale) FileSelected ]
             , div []
                 [ Section.ManageTags.view (translateManageYourTags model.locale) (translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]

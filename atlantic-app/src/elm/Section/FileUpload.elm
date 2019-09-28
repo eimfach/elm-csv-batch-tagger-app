@@ -6,8 +6,8 @@ import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
 
 
-view : String -> Bool -> msg -> Html msg
-view headerText fileExists changeMsg =
+view : String -> msg -> Html msg
+view headerText changeMsg =
     div [ class "uk-section uk-section-small" ]
         [ h3
             [ class "uk-heading-line uk-text-center" ]
@@ -20,7 +20,6 @@ view headerText fileExists changeMsg =
                 []
             , button
                 [ class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
-                , classList [ ( "no-file", not fileExists ) ]
                 ]
                 [ label
                     [ attribute "uk-icon" "icon: upload"
