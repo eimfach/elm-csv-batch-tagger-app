@@ -1,13 +1,15 @@
-module Data.Modal exposing (Button, DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState)
+module Modal exposing (Button, DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
 
-import Data.Button
-import Html exposing (Html)
+import Button
+import Html exposing (Html, button, div, h2, p, text)
+import Html.Attributes exposing (attribute, class, classList, id, style, type_)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
 
 
 type alias Button msg =
-    ( Data.Button.Type, msg, Title )
+    ( Button.Type, msg, Title )
 
 
 type alias State content =
@@ -84,3 +86,36 @@ parseDisplayProperties encoded =
 
         _ ->
             Err "Invalid DisplayProperties Encoding"
+
+
+viewModalButton : Button msg -> Html.Html msg
+viewModalButton ( button, msg, descr ) =
+    Button.view msg button Button.NoActionType descr
+
+
+view : DisplayProperties -> msg -> String -> Html.Html msg -> List (Button msg) -> Html.Html msg
+view displayProperties closeMsg heading content buttons =
+    let
+        displayPropertyClasses =
+            case displayProperties of
+                RegularView ->
+                    [ ( "uk-modal-full", False ) ]
+
+                Fullscreen ->
+                    [ ( "uk-modal-full", True ) ]
+    in
+    div [ class "uk-modal", class "uk-modal-container uk-open", classList displayPropertyClasses, style "display" "block" ]
+        [ div [ class "uk-modal-dialog" ]
+            [ button [ class "uk-modal-close-full uk-close-large", type_ "button", attribute "uk-close" "", onClick closeMsg ]
+                []
+            , div [ class "uk-modal-header" ]
+                [ h2 [ class "uk-modal-title" ]
+                    [ text heading ]
+                ]
+            , div [ class "uk-modal-body", attribute "uk-overflow-auto" "" ]
+                [ content ]
+            , div
+                [ class "uk-modal-footer uk-text-right" ]
+                (List.map viewModalButton buttons)
+            ]
+        ]

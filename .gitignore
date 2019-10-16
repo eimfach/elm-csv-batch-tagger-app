@@ -1,5 +1,7 @@
-#archive/
-.DS_Store
-node_modules/
 elm-stuff/
+node_modules/
+repl*
+dist/
+.DS_Store
+webpack.override.config.js
 .idea

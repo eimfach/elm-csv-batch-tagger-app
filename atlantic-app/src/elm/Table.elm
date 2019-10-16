@@ -1,16 +1,27 @@
-module Data.Table exposing (Cell, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, setADataFormat)
+module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, setADataFormat, view, viewSingle, viewWithTagData)
 
-import Data.Alias exposing (ColumnHeadingName, Tag)
-import Data.Helpers exposing (isResultOk)
-import Data.Parsers exposing (..)
 import Dict exposing (Dict)
+import Helpers exposing (isResultOk)
+import Html exposing (Html, div, h3, p, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (class)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra
+import NavBar
 import Parser exposing ((|.), (|=))
+import Parsers exposing (..)
 
 
 type alias Cell =
+    String
+
+
+type alias ColumnHeadingName =
+    String
+
+
+type alias Tag =
     String
 
 
@@ -38,10 +49,6 @@ type Currency
     | Euro
 
 
-
-{- @Data.Table.TableDataTagged deprecated, move tags into Row type -}
-
-
 type alias TableDataTagged =
     { tag : Tag
     , headers : List ColumnHeadingName
@@ -51,12 +58,7 @@ type alias TableDataTagged =
 
 
 
--- "↓" "↑"
--- Type Sort
--- if every column of a dataset is unordered, the whole dataset is unordered
--- if one ore multiple columns are ordererd (asc or desc) by default the dataset is ordered without any further doings.
--- It doesn't matter how much are ordered, the whole dataset goes as sorted but we can't say sorted by which column.
--- as a result we need to know each columns sorting state and reflect that in the types signature
+-- PARSING
 
 
 convertCurrencyToSymbol : Currency -> String
@@ -82,10 +84,10 @@ parseCurrencyToFloat selectedCurrency =
     in
     Parser.succeed identity
         |= parseChainFloat
-        |. Data.Parsers.parseOptionalSpaces
+        |. Parsers.parseOptionalSpaces
         |. parseCurrencySymbol currencySymbol
         |. Parser.end
-        |> Parser.andThen Data.Parsers.convertToFloat
+        |> Parser.andThen Parsers.convertToFloat
 
 
 parseCurrency : Currency -> Parser.Parser Currency
@@ -96,10 +98,14 @@ parseCurrency selectedCurrency =
     in
     Parser.succeed identity
         |. parseChainFloat
-        |. Data.Parsers.parseOptionalSpaces
+        |. Parsers.parseOptionalSpaces
         |= parseCurrencySymbol currencySymbol
         |. Parser.end
         |> Parser.andThen convertToCurrency
+
+
+
+-- ENCODING
 
 
 convertToCurrency : String -> Parser.Parser Currency
@@ -138,6 +144,10 @@ encodeRow row =
     Encode.object
         [ ( "cells", Encode.list Encode.string row.cells )
         ]
+
+
+
+-- DECODING
 
 
 decodeTableData : Decode.Decoder TableData
@@ -254,6 +264,10 @@ parseDataFormat encodedFormat =
             Err "Invalid ModalContent Encoding"
 
 
+
+-- DATAFORMATS
+
+
 setADataFormat : ColumnHeadingName -> DataFormat -> TableDataTagged -> TableDataTagged
 setADataFormat column dataFormat taggedTable =
     { taggedTable | dataFormats = Dict.insert column dataFormat taggedTable.dataFormats }
@@ -294,6 +308,10 @@ detectDataFormats taggedTable =
         |> List.foldl (\updatePart newTableData -> updatePart newTableData) taggedTable
 
 
+
+-- MANIPULATE ROWS
+
+
 flattenRows : List Row -> List (List String)
 flattenRows someRows =
     List.map (\row -> row.cells) someRows
@@ -302,6 +320,10 @@ flattenRows someRows =
 prependCellToRow : String -> Row -> Row
 prependCellToRow cell aRow =
     { aRow | cells = cell :: aRow.cells }
+
+
+
+-- GET COLUMNS
 
 
 getColumnData : Int -> List Row -> List String
@@ -335,3 +357,62 @@ getColumnDataWith parser columnIndex records =
 
     else
         Just (List.filterMap identity columnData)
+
+
+
+-- VIEW
+
+
+viewSingle : List (Html.Attribute msg) -> List String -> List (Html msg) -> Html msg
+viewSingle cellAttr headers record =
+    div [ class "uk-overflow-auto" ]
+        [ table
+            [ class "uk-table uk-table-responsive uk-table-divider" ]
+            [ thead []
+                [ viewRow th [] <| List.map text headers ]
+            , tbody []
+                [ viewRow td cellAttr record ]
+            ]
+        ]
+
+
+view : List ( String, msg ) -> List (List (Html msg)) -> Html msg
+view headers rows =
+    table [ class "uk-table uk-table-responsive uk-table-divider uk-table-middle uk-table-small" ]
+        [ thead []
+            [ viewRow th [] <| List.map (\( column, msg ) -> span [ onClick msg ] [ text column ]) headers ]
+        , tbody []
+            (List.map (\row -> viewRow td [] row) rows)
+        ]
+
+
+viewRow : (List (Html.Attribute msg) -> List (Html.Html msg) -> Html.Html msg) -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
+viewRow tableElement elementAttr cells =
+    tr []
+        (List.map
+            (\content -> tableElement elementAttr [ content ])
+            cells
+        )
+
+
+viewWithTagData : msg -> { tag : Tag, headers : List ( ColumnHeadingName, msg ), rows : List Row, dataFormats : Dict ColumnHeadingName DataFormat } -> Html msg
+viewWithTagData exportAction { tag, headers, rows } =
+    let
+        plainPreparedRows =
+            rows |> flattenRows |> List.map (List.map text)
+    in
+    div [ class "uk-padding-small uk-overflow-auto" ]
+        [ p
+            [ class "uk-position-relative" ]
+            [ h3
+                [ class "uk-text-center" ]
+                [ span
+                    [ class "uk-text-large" ]
+                    [ text tag ]
+                ]
+            , NavBar.viewIconNav [ ( NavBar.Export, exportAction, [] ) ]
+            ]
+        , view
+            headers
+            plainPreparedRows
+        ]

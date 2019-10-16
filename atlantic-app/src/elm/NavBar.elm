@@ -1,4 +1,4 @@
-module View.NavBar exposing (NavItem(..), viewIconNav)
+module NavBar exposing (NavItem(..), viewIconNav)
 
 import Html exposing (button, div, li, nav, text, ul)
 import Html.Attributes exposing (attribute, class, href)

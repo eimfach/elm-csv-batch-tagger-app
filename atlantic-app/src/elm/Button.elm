@@ -1,69 +1,97 @@
-module View.Button exposing (view)
+module Button exposing (ActionType(..), Alignment(..), Size(..), Text, Type(..), view)
 
-import Data.Button
 import Html exposing (button, span, text)
 import Html.Attributes exposing (attribute, class, type_)
 import Html.Events exposing (onClick)
 import Set
 
 
-mapButtonStyles : Data.Button.Type -> String
+type ActionType
+    = Add
+    | Remove
+    | NoActionType
+
+
+type Size
+    = Small
+    | Medium
+    | Large
+
+
+type Alignment
+    = Left
+    | Right
+    | NoAlign
+
+
+type Type
+    = Primary
+    | Secondary
+    | Default
+    | Composed Type Size Alignment
+
+
+type alias Text =
+    String
+
+
+mapButtonStyles : Type -> String
 mapButtonStyles btnType =
     case btnType of
-        Data.Button.Primary ->
+        Primary ->
             createPrefixedClass (Set.fromList [ "button", "button-primary" ])
 
-        Data.Button.Secondary ->
+        Secondary ->
             createPrefixedClass (Set.fromList [ "button", "button-secondary" ])
 
-        Data.Button.Default ->
+        Default ->
             createPrefixedClass (Set.fromList [ "button", "button-default" ])
 
-        Data.Button.Composed btnType_ sizeTag alignment ->
+        Composed btnType_ sizeTag alignment ->
             let
                 sizeClasses =
                     case sizeTag of
-                        Data.Button.Small ->
+                        Small ->
                             createPrefixedClass (Set.fromList [ "button-small" ])
 
-                        Data.Button.Medium ->
+                        Medium ->
                             createPrefixedClass (Set.fromList [ "button-medium" ])
 
-                        Data.Button.Large ->
+                        Large ->
                             createPrefixedClass (Set.fromList [ "button-large" ])
 
                 alignmentClasses =
                     case alignment of
-                        Data.Button.Left ->
+                        Left ->
                             createPrefixedClass (Set.fromList [ "align-left" ])
 
-                        Data.Button.Right ->
+                        Right ->
                             createPrefixedClass (Set.fromList [ "align-right" ])
 
-                        Data.Button.NoAlign ->
+                        NoAlign ->
                             createPrefixedClass Set.empty
             in
             mapButtonStyles btnType_ ++ sizeClasses ++ alignmentClasses
 
 
-mapButtonActionType : Data.Button.ActionType -> List (Html.Attribute msg)
+mapButtonActionType : ActionType -> List (Html.Attribute msg)
 mapButtonActionType btnActionType =
     case btnActionType of
-        Data.Button.Add ->
+        Add ->
             [ attribute "uk-icon" "icon: plus-circle" ]
 
-        Data.Button.Remove ->
+        Remove ->
             [ attribute "uk-icon" "icon: minus-circle" ]
 
-        Data.Button.NoActionType ->
+        NoActionType ->
             []
 
 
 view :
     msg
-    -> Data.Button.Type
-    -> Data.Button.ActionType
-    -> Data.Button.Text
+    -> Type
+    -> ActionType
+    -> Text
     -> Html.Html msg
 view msg btnType btnActionType btnText =
     button

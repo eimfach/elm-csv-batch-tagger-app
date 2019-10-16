@@ -1,4 +1,4 @@
-module Data.Helpers exposing (isResultOk, maybeToBool)
+module Helpers exposing (isResultOk, maybeToBool)
 
 
 maybeToBool : Maybe a -> Bool

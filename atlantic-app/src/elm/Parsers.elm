@@ -1,4 +1,4 @@
-module Data.Parsers exposing (..)
+module Parsers exposing (..)
 
 import Parser exposing ((|.), (|=))
 import Time

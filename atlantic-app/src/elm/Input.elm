@@ -1,11 +1,10 @@
-module View.Input exposing (viewDefault, viewRadio, viewRadioGroup, viewWithButton)
+module Input exposing (viewAutocomplete, viewDefault, viewRadio, viewRadioGroup, viewWithButton)
 
-import Data.Button
-import Data.Input
-import Html exposing (Html, button, div, input, label, span, text)
-import Html.Attributes exposing (class, classList, name, type_, value)
+import Button
+import Html exposing (Attribute, Html, button, datalist, div, input, label, option, span, text)
+import Html.Attributes exposing (class, classList, id, list, name, type_, value)
 import Html.Events exposing (onClick, onInput)
-import View.Button as Button
+import Set exposing (Set)
 
 
 view : List (Html msg) -> Html msg
@@ -14,7 +13,7 @@ view childs =
         childs
 
 
-viewDefault : String -> Data.Input.Attributes msg -> Html msg
+viewDefault : String -> List (Attribute msg) -> Html msg
 viewDefault val inputAttr =
     view
         [ input
@@ -26,8 +25,8 @@ viewDefault val inputAttr =
 
 
 viewWithButton :
-    Data.Input.Attributes msg
-    -> Data.Button.ActionType
+    List (Attribute msg)
+    -> Button.ActionType
     -> msg
     -> Html msg
 viewWithButton inputAttr btnActionType msg =
@@ -40,21 +39,13 @@ viewWithButton inputAttr btnActionType msg =
                 []
             , Button.view
                 msg
-                Data.Button.Default
+                Button.Default
                 btnActionType
                 ""
             ]
         ]
 
 
-{-|
-
-    message
-
-, groupName
-, labelText
-
--}
 viewRadio : (String -> msg) -> String -> String -> Html msg
 viewRadio action groupName labelText =
     div
@@ -77,3 +68,32 @@ viewRadio action groupName labelText =
 viewRadioGroup : String -> (String -> msg) -> List String -> List (Html msg)
 viewRadioGroup groupName msg radioLabels =
     List.map (viewRadio msg groupName) radioLabels
+
+
+viewAutocomplete : String -> String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
+viewAutocomplete labelText val idVal inputAttr options =
+    div [ class "uk-form-horizontal" ]
+        [ div [ class "uk-margin" ]
+            [ label [ class "uk-form-label" ] [ text labelText ]
+            , viewDefault val
+                (inputAttr
+                    ++ [ list idVal ]
+                )
+            , viewDataList idVal options
+            ]
+        ]
+
+
+viewDataList : String -> Set String -> Html msg
+viewDataList idVal options =
+    datalist
+        [ id idVal ]
+        (options
+            |> Set.toList
+            |> List.map viewListItem
+        )
+
+
+viewListItem : String -> Html msg
+viewListItem content =
+    option [] [ text content ]

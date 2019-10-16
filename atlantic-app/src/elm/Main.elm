@@ -2,35 +2,30 @@ port module Main exposing (main)
 
 import Browser
 import Browser.Navigation
+import Button
 import Csv
-import Data.Alias exposing (ColumnHeadingName, HtmlNodeId, SearchPattern, Tag)
-import Data.Button
-import Data.Helpers exposing (maybeToBool)
-import Data.Locale exposing (..)
-import Data.Modal
-import Data.Parsers exposing (..)
-import Data.Table exposing (Cell, Row, TableData, TableDataTagged, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
 import Dict exposing (Dict)
 import File.Download as Download
+import Helpers exposing (maybeToBool)
 import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, type_, value)
-import Html.Events exposing (onClick)
+import Html.Events exposing (on, onClick, onInput)
+import Html.Lazy
+import Input
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
+import Locale exposing (..)
+import Modal
+import NavBar
 import Parser
+import Parsers exposing (..)
 import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
 import Regex
-import Section.ApplyTags exposing (viewBatchTaggingTab, viewManualTaggingTab)
-import Section.FileUpload
-import Section.ManageTags
 import Set exposing (Set)
+import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
 import Time
 import Time.Extra
-import View.Modal as Modal
-import View.NavBar as NavBar
-import View.Table as Table
-import View.Tags as Tags
 
 
 
@@ -67,6 +62,14 @@ port getLocale : (String -> msg) -> Sub msg
 
 type alias HtmlNode =
     Html.Html Msg
+
+
+type alias SearchPattern =
+    String
+
+
+type alias HtmlNodeId =
+    String
 
 
 type alias Comparison =
@@ -110,7 +113,7 @@ type alias Model =
     , tableDataTagged : List (List TableDataTagged)
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
     , optionTagging : TaggingOption
-    , showModal : Maybe (Data.Modal.State ModalContent)
+    , showModal : Maybe (Modal.State ModalContent)
     }
 
 
@@ -150,7 +153,7 @@ init flags =
             Result.withDefault Dict.empty <| Decode.decodeValue (Decode.field "batchTaggingOptions" (Decode.dict Decode.string)) flags
 
         showModal =
-            Result.withDefault Nothing <| Decode.decodeValue (Decode.field "showModal" (Decode.nullable (Data.Modal.createStateDecoder modalContentDecoder))) flags
+            Result.withDefault Nothing <| Decode.decodeValue (Decode.field "showModal" (Decode.nullable (Modal.createStateDecoder modalContentDecoder))) flags
     in
     ( { locale = locale
       , tags = tags
@@ -192,11 +195,11 @@ encodeModel model =
         ]
 
 
-encodeShowModal : Maybe (Data.Modal.State ModalContent) -> Encode.Value
+encodeShowModal : Maybe (Modal.State ModalContent) -> Encode.Value
 encodeShowModal showModal =
     case showModal of
         Just modalState ->
-            Data.Modal.encodeState modalState encodeModalContent
+            Modal.encodeState modalState encodeModalContent
 
         Nothing ->
             Encode.null
@@ -284,7 +287,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ShowDeleteLocalData ->
-            ( updateShowModal Data.Modal.RegularView (translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
+            ( updateShowModal Modal.RegularView (translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
             , Cmd.none
             )
 
@@ -414,7 +417,7 @@ update msg model =
                                             updatedRows =
                                                 List.concat [ table.rows, someTableRows ]
                                         in
-                                        Data.Table.detectDataFormats (TableDataTagged theTag table.headers updatedRows table.dataFormats)
+                                        Table.detectDataFormats (TableDataTagged theTag table.headers updatedRows table.dataFormats)
 
                                     else
                                         table
@@ -537,10 +540,10 @@ update msg model =
 
                 modalDisplay =
                     if List.isEmpty plainMatchedRecords then
-                        Data.Modal.RegularView
+                        Modal.RegularView
 
                     else
-                        Data.Modal.Fullscreen
+                        Modal.Fullscreen
             in
             ( updateShowModal
                 modalDisplay
@@ -570,19 +573,19 @@ update msg model =
                                     case Dict.get column dataFormats of
                                         Just dataFormat ->
                                             case dataFormat of
-                                                Data.Table.Text ->
+                                                Table.Text ->
                                                     Nothing
 
-                                                Data.Table.Float ->
+                                                Table.Float ->
                                                     Just (compareWithParser parseFloat)
 
-                                                Data.Table.Integer ->
+                                                Table.Integer ->
                                                     Just (compareWithParser parseInt)
 
-                                                Data.Table.Date ->
+                                                Table.Date ->
                                                     Just (compareDate parseAnySupportedDate)
 
-                                                Data.Table.Currency currency ->
+                                                Table.Currency currency ->
                                                     Just (compareWithParser <| parseCurrencyToFloat currency)
 
                                         Nothing ->
@@ -617,14 +620,14 @@ updateSetDefaultTags locale model =
     { model | tags = Set.fromList <| translateDefaultTags locale }
 
 
-updateShowModalInfo : Data.Modal.Title -> ModalContent -> Model -> Model
+updateShowModalInfo : Modal.Title -> ModalContent -> Model -> Model
 updateShowModalInfo title content model =
-    { model | showModal = Just (Data.Modal.State content title Data.Modal.RegularView) }
+    { model | showModal = Just (Modal.State content title Modal.RegularView) }
 
 
-updateShowModal : Data.Modal.DisplayProperties -> Data.Modal.Title -> ModalContent -> Model -> Model
+updateShowModal : Modal.DisplayProperties -> Modal.Title -> ModalContent -> Model -> Model
 updateShowModal displayProperties title content model =
-    { model | showModal = Just (Data.Modal.State content title displayProperties) }
+    { model | showModal = Just (Modal.State content title displayProperties) }
 
 
 updateCloseModal : Model -> Model
@@ -670,12 +673,12 @@ viewModalContent locale modalContent =
             text (translateWarningDeleteLocalData locale)
 
 
-getModalButtons : Locale -> ModalContent -> List (Data.Modal.Button Msg)
+getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
         ViewMapRecordsToTag headers plainRecords tag ->
             if List.isEmpty plainRecords then
-                [ ( Data.Button.Secondary, CloseModal, "OK" )
+                [ ( Button.Secondary, CloseModal, "OK" )
                 ]
 
             else
@@ -683,17 +686,17 @@ getModalButtons locale modalContent =
                     saveMsg =
                         MapRecordToTag (Multiple <| List.map Row plainRecords) tag
                 in
-                [ ( Data.Button.Primary, saveMsg, translateSave locale )
-                , ( Data.Button.Secondary, CloseModal, translateCancel locale )
+                [ ( Button.Primary, saveMsg, translateSave locale )
+                , ( Button.Secondary, CloseModal, translateCancel locale )
                 ]
 
         ViewInfo info ->
-            [ ( Data.Button.Secondary, CloseModal, "OK" )
+            [ ( Button.Secondary, CloseModal, "OK" )
             ]
 
         ViewWarningDeleteLocalData ->
-            [ ( Data.Button.Secondary, DeleteLocalData, translateProceed locale )
-            , ( Data.Button.Primary, CloseModal, translateCancel locale )
+            [ ( Button.Secondary, DeleteLocalData, translateProceed locale )
+            , ( Button.Primary, CloseModal, translateCancel locale )
             ]
 
 
@@ -749,9 +752,9 @@ view model =
                 , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
-                [ Section.FileUpload.view (translateSelectAcsvFile model.locale) FileSelected ]
+                [ viewFileUploadSection (translateSelectAcsvFile model.locale) FileSelected ]
             , div []
-                [ Section.ManageTags.view (translateManageYourTags model.locale) (translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
+                [ viewManageTagsSection (translateManageYourTags model.locale) (translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
                 [ viewTaggingSection
@@ -770,6 +773,110 @@ view model =
             [ div [ class "col-lg-12 col-sm-12" ]
                 [ viewMappedRecordsPanel (translateTag model.locale) (translateTaggedRecords model.locale) tableData.headers tableDataTagged
                 ]
+            ]
+        ]
+
+
+
+-- VIEW TAGS
+
+
+viewTagList : (Table.Tag -> msg) -> Set Table.Tag -> Html msg
+viewTagList msg tags =
+    ul [ class "uk-list uk-list-divider" ]
+        (tags
+            |> Set.toList
+            |> List.map (viewTagListItem msg)
+        )
+
+
+viewTagListItem : (Table.Tag -> msg) -> Table.Tag -> Html msg
+viewTagListItem msg tag =
+    li []
+        [ span
+            []
+            [ text tag ]
+        , Button.view
+            (msg tag)
+            (Button.Composed Button.Default Button.Medium Button.Right)
+            Button.Remove
+            ""
+        ]
+
+
+viewTagButtons : (Table.Tag -> msg) -> Set Table.Tag -> List (Html msg)
+viewTagButtons msg tags =
+    tags
+        |> Set.toList
+        |> List.map (viewTagButton msg)
+
+
+viewTagButton : (Table.Tag -> msg) -> Table.Tag -> Html msg
+viewTagButton msg tag =
+    Button.view
+        (msg tag)
+        (Button.Composed Button.Primary Button.Medium Button.NoAlign)
+        Button.NoActionType
+        tag
+
+
+viewTagCloud : (Table.Tag -> msg) -> Set Table.Tag -> Html msg
+viewTagCloud action tags =
+    p
+        [ class "tag-cloud" ]
+        (viewTagButtons
+            action
+            tags
+        )
+
+
+
+-- VIEW SECTIONS
+
+
+viewFileUploadSection : String -> msg -> Html msg
+viewFileUploadSection headerText changeMsg =
+    div [ class "uk-section uk-section-small" ]
+        [ h3
+            [ class "uk-heading-line uk-text-center" ]
+            [ span [ class "uk-text-background uk-text-large" ] [ text headerText ]
+            ]
+        , div
+            [ class "uk-padding" ]
+            [ input
+                [ type_ "file", id "csv-upload", name "csv-upload", on "change" (Decode.succeed changeMsg) ]
+                []
+            , button
+                [ class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
+                ]
+                [ label
+                    [ attribute "uk-icon" "icon: upload"
+                    , for "csv-upload"
+                    , class "file-label"
+                    ]
+                    [ text "" ]
+                ]
+            ]
+        ]
+
+
+viewManageTagsSection : String -> String -> ( String, Bool ) -> String -> Set Table.Tag -> (Table.Tag -> msg) -> msg -> (Table.Tag -> msg) -> Html.Html msg
+viewManageTagsSection headerText inputPlaceholder error buffer tags tagInputMsg createTagMsg removeTagMsg =
+    div []
+        [ div []
+            [ h3
+                [ class "uk-heading-line uk-text-center" ]
+                [ span [ class "uk-text-background uk-text-large" ] [ text headerText ]
+                ]
+            ]
+        , div [ class "uk-padding" ]
+            [ Input.viewWithButton
+                [ onInput tagInputMsg, value buffer, placeholder inputPlaceholder ]
+                Button.Add
+                createTagMsg
+            , viewTagList
+                (\tag -> removeTagMsg tag)
+                tags
             ]
         ]
 
@@ -803,13 +910,13 @@ viewTaggingSection locale taggingOption batchTaggingOptions tags headers row row
                 BatchTagging ->
                     ShowMatchingRecords headers tag rows
 
-        ( viewTagActionDescription, viewTagCloud ) =
+        ( viewTagActionDescription, viewTagCloud_ ) =
             if List.isEmpty rows then
                 ( text "", text "" )
 
             else
                 ( div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
-                , Tags.viewTagCloud (\tag -> taggingAction tag) tags
+                , viewTagCloud (\tag -> taggingAction tag) tags
                 )
 
         ( singleIsActiveTab, viewTab ) =
@@ -849,10 +956,97 @@ viewTaggingSection locale taggingOption batchTaggingOptions tags headers row row
                 ]
             , viewTab
             , viewTagActionDescription
-            , viewTagCloud
+            , viewTagCloud_
             , hr [ class "uk-divider-icon" ] []
             ]
         ]
+
+
+viewManualTaggingTab : Locale.Locale -> List ColumnHeadingName -> List String -> Html.Html msg
+viewManualTaggingTab locale columns records =
+    let
+        content =
+            if List.isEmpty records then
+                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
+
+            else
+                [ p
+                    [ class "uk-text-meta" ]
+                    [ span
+                        [ class "uk-label uk-text-small" ]
+                        [ text "NOTE" ]
+                    , text <| "  " ++ Locale.translateHowManualTaggingWorks locale
+                    ]
+                , Table.viewSingle
+                    []
+                    columns
+                    (List.map text records)
+                ]
+    in
+    div [] content
+
+
+viewBatchTaggingTab : Locale.Locale -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTaggingTab locale batchTaggingOptions inputAction columns records =
+    let
+        content =
+            if List.isEmpty records then
+                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
+
+            else
+                [ p
+                    [ class "uk-text-meta" ]
+                    [ span
+                        [ class "uk-label uk-text-small" ]
+                        [ text "NOTE" ]
+                    , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateHowBatchTaggingWorks locale ]
+                    ]
+                , viewBatchTagging locale batchTaggingOptions inputAction columns records
+                ]
+    in
+    div [] content
+
+
+viewBatchTagging : Locale.Locale -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTagging locale batchTaggingOptions inputAction columns records =
+    let
+        autoTagger =
+            columns
+                |> List.indexedMap
+                    (Html.Lazy.lazy2
+                        (\index column ->
+                            let
+                                val =
+                                    Maybe.withDefault "" <| Dict.get column batchTaggingOptions
+
+                                -- create data list for autocomplete
+                                options =
+                                    Set.fromList <| Table.getColumnData index records
+                            in
+                            Html.Lazy.lazy6 viewBatchTaggingInput column locale ("autoTagger" ++ String.fromInt index) val options (inputAction column)
+                        )
+                    )
+    in
+    if List.isEmpty records then
+        text ""
+
+    else
+        div
+            []
+            [ p
+                [ class "uk-width-1-1" ]
+                autoTagger
+            ]
+
+
+viewBatchTaggingInput : String -> Locale.Locale -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput labelText locale idVal val options action =
+    Input.viewAutocomplete
+        labelText
+        val
+        idVal
+        [ placeholder (Locale.translateSelectAKeywordOrRegex locale), onInput action ]
+        options
 
 
 viewTaggingIconNav : ( List a, List a1 ) -> Html Msg
@@ -887,7 +1081,7 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
 
     else
         let
-            preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row, dataFormats : Dict ColumnHeadingName Data.Table.DataFormat }
+            preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row, dataFormats : Dict ColumnHeadingName Table.DataFormat }
             preparedRows =
                 List.map
                     (\{ tag, headers, rows, dataFormats } ->
@@ -980,7 +1174,7 @@ mapRowToTag aTag aRow aTaggedTable =
             { headers, tag, rows, dataFormats } =
                 aTaggedTable
         in
-        TableDataTagged tag headers (aRow :: rows) dataFormats |> Data.Table.detectDataFormats
+        TableDataTagged tag headers (aRow :: rows) dataFormats |> Table.detectDataFormats
 
     else
         aTaggedTable
