@@ -1,6 +1,0 @@
-elm-stuff/
-node_modules/
-repl*
-dist/
-.DS_Store
-webpack.override.config.js
