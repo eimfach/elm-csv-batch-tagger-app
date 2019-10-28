@@ -13,6 +13,10 @@ import Parser exposing ((|.), (|=))
 import Parsers exposing (..)
 
 
+
+-- TYPES
+
+
 type alias Cell =
     String
 
