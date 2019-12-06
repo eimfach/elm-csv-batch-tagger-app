@@ -1,9 +1,9 @@
 module Input exposing (viewAutocomplete, viewDefault, viewRadio, viewRadioGroup, viewWithButton)
 
 import Button
-import Html exposing (Attribute, Html, button, datalist, div, input, label, option, span, text)
-import Html.Attributes exposing (class, classList, id, list, name, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Attribute, Html, datalist, div, input, label, option, text)
+import Html.Attributes exposing (class, id, list, name, type_, value)
+import Html.Events exposing (onClick)
 import Set exposing (Set)
 
 
@@ -24,11 +24,7 @@ viewDefault val inputAttr =
         ]
 
 
-viewWithButton :
-    List (Attribute msg)
-    -> Button.ActionType
-    -> msg
-    -> Html msg
+viewWithButton : List (Attribute msg) -> Button.ActionType -> msg -> Html msg
 viewWithButton inputAttr btnActionType msg =
     view
         [ div [ class "input-with-button" ]

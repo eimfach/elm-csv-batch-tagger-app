@@ -1,8 +1,8 @@
 module Modal exposing (Button, DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
 
 import Button
-import Html exposing (Html, button, div, h2, p, text)
-import Html.Attributes exposing (attribute, class, classList, id, style, type_)
+import Html exposing (Html, button, div, h2, text)
+import Html.Attributes exposing (attribute, class, classList, style, type_)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -88,12 +88,12 @@ parseDisplayProperties encoded =
             Err "Invalid DisplayProperties Encoding"
 
 
-viewModalButton : Button msg -> Html.Html msg
+viewModalButton : Button msg -> Html msg
 viewModalButton ( button, msg, descr ) =
     Button.view msg button Button.NoActionType descr
 
 
-view : DisplayProperties -> msg -> String -> Html.Html msg -> List (Button msg) -> Html.Html msg
+view : DisplayProperties -> msg -> String -> Html msg -> List (Button msg) -> Html msg
 view displayProperties closeMsg heading content buttons =
     let
         displayPropertyClasses =

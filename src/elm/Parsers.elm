@@ -1,4 +1,4 @@
-module Parsers exposing (..)
+module Parsers exposing (convertToFloat, parseAnySupportedDate, parseChainFloat, parseEuropeanDateToISO8601String, parseEuropeanDateToPosix, parseFloat, parseInt, parseIso8601Date, parseIso8601DateToPosix, parseOptionalSpaces)
 
 import Parser exposing ((|.), (|=))
 import Time
@@ -90,10 +90,12 @@ parseInt =
 
 
 {-| @todo #1 Used to Parse a float in a chain of other parsers. Supporting `,` _and_ `.` decimal separators.
+
 Parsing Float Strings with additional thousands separators is not supported. The parsing will fail in this scenario.
 Consider using `Parser.loop` and `Parser.oneOf`. Also I think it should test if the created number is supported by the js runtime.
 There is an elm lib to do this. Maybe it is easy to implement it by yourself, and the lib is not needed. Also, should mixed separator 'types' be possible ?
 or could it cause a performance issue ? Right now it supports mixed decimal separators using `Parser.oneOf`
+
 -}
 parseChainFloat : Parser.Parser ( String, String, String )
 parseChainFloat =

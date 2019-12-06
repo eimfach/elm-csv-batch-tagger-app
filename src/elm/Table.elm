@@ -10,7 +10,7 @@ import Json.Encode as Encode
 import List.Extra
 import NavBar
 import Parser exposing ((|.), (|=))
-import Parsers exposing (..)
+import Parsers
 
 
 
@@ -87,7 +87,7 @@ parseCurrencyToFloat selectedCurrency =
             convertCurrencyToSymbol selectedCurrency
     in
     Parser.succeed identity
-        |= parseChainFloat
+        |= Parsers.parseChainFloat
         |. Parsers.parseOptionalSpaces
         |. parseCurrencySymbol currencySymbol
         |. Parser.end
@@ -101,7 +101,7 @@ parseCurrency selectedCurrency =
             convertCurrencyToSymbol selectedCurrency
     in
     Parser.succeed identity
-        |. parseChainFloat
+        |. Parsers.parseChainFloat
         |. Parsers.parseOptionalSpaces
         |= parseCurrencySymbol currencySymbol
         |. Parser.end
@@ -281,17 +281,17 @@ detectDataFormats : TableDataTagged -> TableDataTagged
 detectDataFormats taggedTable =
     List.indexedMap
         (\colIndex column ->
-            case getColumnDataWithParser parseFloat colIndex taggedTable.rows of
+            case getColumnDataWithParser Parsers.parseFloat colIndex taggedTable.rows of
                 Just _ ->
                     setADataFormat column Float
 
                 Nothing ->
-                    case getColumnDataWithParser parseInt colIndex taggedTable.rows of
+                    case getColumnDataWithParser Parsers.parseInt colIndex taggedTable.rows of
                         Just _ ->
                             setADataFormat column Integer
 
                         Nothing ->
-                            case getColumnDataWithParser parseAnySupportedDate colIndex taggedTable.rows of
+                            case getColumnDataWithParser Parsers.parseAnySupportedDate colIndex taggedTable.rows of
                                 Just _ ->
                                     setADataFormat column Date
 

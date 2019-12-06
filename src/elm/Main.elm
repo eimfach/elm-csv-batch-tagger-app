@@ -6,8 +6,7 @@ import Button
 import Csv
 import Dict exposing (Dict)
 import File.Download as Download
-import Helpers exposing (maybeToBool)
-import Html exposing (Html, a, button, datalist, dd, div, dl, dt, h1, h2, h3, h4, h5, hr, input, label, li, option, p, select, span, text, ul)
+import Html exposing (Html, a, button, div, h3, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, type_, value)
 import Html.Events exposing (on, onClick, onInput)
 import Html.Lazy
@@ -15,12 +14,12 @@ import Input
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
-import Locale exposing (..)
+import Locale exposing (Locale)
 import Modal
 import NavBar
 import Parser
-import Parsers exposing (..)
-import Ports.FileReader exposing (FileData, decodeFileContents, decodeFileData, encodeFileData, fileContentRead, fileSelected)
+import Parsers
+import Ports.FileReader exposing (FileData, decodeFileContents, fileContentRead, fileSelected)
 import Regex
 import Set exposing (Set)
 import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
@@ -121,7 +120,7 @@ init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     let
         locale =
-            Result.withDefault getDefaultLocale <| Decode.decodeValue (Decode.field "locale" localeDecoder) flags
+            Result.withDefault Locale.getDefaultLocale <| Decode.decodeValue (Decode.field "locale" Locale.localeDecoder) flags
 
         tags =
             case Decode.decodeValue (Decode.field "tags" (Decode.list Decode.string)) flags of
@@ -129,7 +128,7 @@ init flags =
                     Set.fromList val
 
                 Err _ ->
-                    Set.fromList (translateDefaultTags locale)
+                    Set.fromList (Locale.translateDefaultTags locale)
 
         addTagInputBuffer =
             Result.withDefault "" <| Decode.decodeValue (Decode.field "addTagInputBuffer" Decode.string) flags
@@ -170,11 +169,6 @@ init flags =
     )
 
 
-getOriginalTableData : Model -> Maybe TableData
-getOriginalTableData model =
-    List.head (List.reverse model.tableData)
-
-
 tuple2Encoder : (a -> Encode.Value) -> (b -> Encode.Value) -> ( a, b ) -> Encode.Value
 tuple2Encoder enc1 enc2 ( val1, val2 ) =
     Encode.list identity [ enc1 val1, enc2 val2 ]
@@ -183,7 +177,7 @@ tuple2Encoder enc1 enc2 ( val1, val2 ) =
 encodeModel : Model -> Encode.Value
 encodeModel model =
     Encode.object
-        [ ( "locale", encodeLocale model.locale )
+        [ ( "locale", Locale.encodeLocale model.locale )
         , ( "tags", Encode.set Encode.string model.tags )
         , ( "addTagInputBuffer", Encode.string model.addTagInputBuffer )
         , ( "addTagInputError", tuple2Encoder Encode.string Encode.bool model.addTagInputError )
@@ -287,7 +281,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ShowDeleteLocalData ->
-            ( updateShowModal Modal.RegularView (translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
+            ( updateShowModal Modal.RegularView (Locale.translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
             , Cmd.none
             )
 
@@ -297,23 +291,23 @@ update msg model =
         SetLocale val ->
             case val of
                 "en-EN" ->
-                    ( updateSetLocale getEnglishLocale model, Cmd.none )
+                    ( updateSetLocale Locale.getEnglishLocale model, Cmd.none )
 
                 "de-DE" ->
-                    ( updateSetLocale getGermanLocale model, Cmd.none )
+                    ( updateSetLocale Locale.getGermanLocale model, Cmd.none )
 
                 _ ->
-                    ( updateSetLocale getEnglishLocale model, Cmd.none )
+                    ( updateSetLocale Locale.getEnglishLocale model, Cmd.none )
 
         ToggleLocale ->
-            if isEnglishLocale model.locale then
-                ( updateSetLocale getGermanLocale model, Cmd.none )
+            if Locale.isEnglishLocale model.locale then
+                ( updateSetLocale Locale.getGermanLocale model, Cmd.none )
 
-            else if isGermanLocale model.locale then
-                ( updateSetLocale getEnglishLocale model, Cmd.none )
+            else if Locale.isGermanLocale model.locale then
+                ( updateSetLocale Locale.getEnglishLocale model, Cmd.none )
 
             else
-                ( updateSetLocale getDefaultLocale model, Cmd.none )
+                ( updateSetLocale Locale.getDefaultLocale model, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -364,14 +358,22 @@ update msg model =
                                             createTableDataFromCsv csv model
 
                                         Err _ ->
-                                            updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| translateErrorParsingYourFile model.locale) model
+                                            updateShowModalInfo
+                                                (Locale.translateErrorHeading model.locale)
+                                                (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
+                                                model
                     in
                     ( newModel |> updateResetBatchTaggingOptions
                     , Cmd.none
                     )
 
                 Err error ->
-                    ( updateShowModalInfo (translateErrorHeading model.locale) (ViewInfo <| "There was an error reading your file : " ++ error) model, Cmd.none )
+                    ( updateShowModalInfo
+                        (Locale.translateErrorHeading model.locale)
+                        (ViewInfo <| "There was an error reading your file : " ++ error)
+                        model
+                    , Cmd.none
+                    )
 
         MapRecordToTag recordBucket theTag ->
             let
@@ -463,7 +465,7 @@ update msg model =
                     let
                         ( newHistoryData, newHistoryDataTagged ) =
                             case ( model.tableData, model.tableDataTagged ) of
-                                ( firstTableD :: restTableD, firstTableDT :: restTableDT ) ->
+                                ( _ :: restTableD, _ :: restTableDT ) ->
                                     ( restTableD, restTableDT )
 
                                 _ ->
@@ -477,7 +479,7 @@ update msg model =
             {- expected that each row has the tag name prepended -}
             let
                 preparedHeaders =
-                    setCSVSemicolonsInList (translateTag model.locale :: headers)
+                    setCSVSemicolonsInList (Locale.translateTag model.locale :: headers)
 
                 preparedRows =
                     List.map setCSVSemicolonsInList <| flattenRows rows
@@ -489,7 +491,7 @@ update msg model =
                 theCsvString =
                     List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
             in
-            ( model, Download.string (tag ++ "-" ++ translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
+            ( model, Download.string (tag ++ "-" ++ Locale.translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
 
         ShowMatchingRecords headers tag rows ->
             let
@@ -536,7 +538,7 @@ update msg model =
                     rowPlain matchedRowsAsRowType
 
                 modalTitleText =
-                    translateRecordsThatWillBeTagged model.locale (List.length plainMatchedRecords)
+                    Locale.translateRecordsThatWillBeTagged model.locale (List.length plainMatchedRecords)
 
                 modalDisplay =
                     if List.isEmpty plainMatchedRecords then
@@ -577,13 +579,13 @@ update msg model =
                                                     Nothing
 
                                                 Table.Float ->
-                                                    Just (compareWithParser parseFloat)
+                                                    Just (compareWithParser Parsers.parseFloat)
 
                                                 Table.Integer ->
-                                                    Just (compareWithParser parseInt)
+                                                    Just (compareWithParser Parsers.parseInt)
 
                                                 Table.Date ->
-                                                    Just (compareDate parseAnySupportedDate)
+                                                    Just (compareDate Parsers.parseAnySupportedDate)
 
                                                 Table.Currency currency ->
                                                     Just (compareWithParser <| parseCurrencyToFloat currency)
@@ -615,11 +617,6 @@ updateSetLocale locale model =
     { model | locale = locale }
 
 
-updateSetDefaultTags : Locale -> Model -> Model
-updateSetDefaultTags locale model =
-    { model | tags = Set.fromList <| translateDefaultTags locale }
-
-
 updateShowModalInfo : Modal.Title -> ModalContent -> Model -> Model
 updateShowModalInfo title content model =
     { model | showModal = Just (Modal.State content title Modal.RegularView) }
@@ -645,7 +642,7 @@ updateResetBatchTaggingOptions model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ fileContentRead ParseToCsv
         , getLocale SetLocale
@@ -659,9 +656,9 @@ subscriptions model =
 viewModalContent : Locale -> ModalContent -> Html.Html Msg
 viewModalContent locale modalContent =
     case modalContent of
-        ViewMapRecordsToTag headers plainRecords tag ->
+        ViewMapRecordsToTag headers plainRecords _ ->
             if List.isEmpty plainRecords then
-                text <| translateNoMatchingRecordsFound locale
+                text <| Locale.translateNoMatchingRecordsFound locale
 
             else
                 Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainRecords
@@ -670,13 +667,13 @@ viewModalContent locale modalContent =
             text info
 
         ViewWarningDeleteLocalData ->
-            text (translateWarningDeleteLocalData locale)
+            text (Locale.translateWarningDeleteLocalData locale)
 
 
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
-        ViewMapRecordsToTag headers plainRecords tag ->
+        ViewMapRecordsToTag _ plainRecords tag ->
             if List.isEmpty plainRecords then
                 [ ( Button.Secondary, CloseModal, "OK" )
                 ]
@@ -686,17 +683,17 @@ getModalButtons locale modalContent =
                     saveMsg =
                         MapRecordToTag (Multiple <| List.map Row plainRecords) tag
                 in
-                [ ( Button.Primary, saveMsg, translateSave locale )
-                , ( Button.Secondary, CloseModal, translateCancel locale )
+                [ ( Button.Primary, saveMsg, Locale.translateSave locale )
+                , ( Button.Secondary, CloseModal, Locale.translateCancel locale )
                 ]
 
-        ViewInfo info ->
+        ViewInfo _ ->
             [ ( Button.Secondary, CloseModal, "OK" )
             ]
 
         ViewWarningDeleteLocalData ->
-            [ ( Button.Secondary, DeleteLocalData, translateProceed locale )
-            , ( Button.Primary, CloseModal, translateCancel locale )
+            [ ( Button.Secondary, DeleteLocalData, Locale.translateProceed locale )
+            , ( Button.Primary, CloseModal, Locale.translateCancel locale )
             ]
 
 
@@ -729,10 +726,10 @@ view model =
                     text ""
 
         localeTranslation =
-            if isEnglishLocale model.locale then
+            if Locale.isEnglishLocale model.locale then
                 "EN"
 
-            else if isGermanLocale model.locale then
+            else if Locale.isGermanLocale model.locale then
                 "DE"
 
             else
@@ -744,17 +741,17 @@ view model =
             []
             [ div [ class "uk-margin-top" ]
                 [ button [ class "uk-button uk-align-right", onClick ToggleLocale ]
-                    [ text <| translateLocale model.locale ++ ": " ++ localeTranslation ]
+                    [ text <| Locale.translateLocale model.locale ++ ": " ++ localeTranslation ]
                 , span
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
-                , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ translateInfoOnHowDataIsStored model.locale ]
-                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (translateDeleteYourLocalData model.locale) ]
+                , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
+                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
-                [ viewFileUploadSection (translateSelectAcsvFile model.locale) FileSelected ]
+                [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) FileSelected ]
             , div []
-                [ viewManageTagsSection (translateManageYourTags model.locale) (translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
+                [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             , div []
                 [ viewTaggingSection
@@ -771,7 +768,7 @@ view model =
         , div
             [ class "row" ]
             [ div [ class "col-lg-12 col-sm-12" ]
-                [ viewMappedRecordsPanel (translateTag model.locale) (translateTaggedRecords model.locale) tableData.headers tableDataTagged
+                [ viewMappedRecordsPanel (Locale.translateTag model.locale) (Locale.translateTaggedRecords model.locale) tableData.headers tableDataTagged
                 ]
             ]
         ]
@@ -861,7 +858,7 @@ viewFileUploadSection headerText changeMsg =
 
 
 viewManageTagsSection : String -> String -> ( String, Bool ) -> String -> Set Table.Tag -> (Table.Tag -> msg) -> msg -> (Table.Tag -> msg) -> Html.Html msg
-viewManageTagsSection headerText inputPlaceholder error buffer tags tagInputMsg createTagMsg removeTagMsg =
+viewManageTagsSection headerText inputPlaceholder _ buffer tags tagInputMsg createTagMsg removeTagMsg =
     div []
         [ div []
             [ h3
@@ -885,22 +882,16 @@ viewTaggingSection : Locale -> TaggingOption -> Dict ColumnHeadingName SearchPat
 viewTaggingSection locale taggingOption batchTaggingOptions tags headers row rows nav =
     let
         translateHeaderText =
-            translateApplyTags locale
+            Locale.translateApplyTags locale
 
         singleTaggingText =
-            translateSingleTagging locale
+            Locale.translateSingleTagging locale
 
         batchTaggingText =
-            translateBatchTagging locale
-
-        placeholderText =
-            translateSelectAKeywordOrRegex locale
+            Locale.translateBatchTagging locale
 
         tagActionText =
-            translateSelectATagToTag locale
-
-        helpText =
-            translateHowBatchTaggingWorks locale
+            Locale.translateSelectATagToTag locale
 
         taggingAction tag =
             case taggingOption of
@@ -1105,30 +1096,14 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
                         )
         in
         div []
-            ([ h3
+            (h3
                 [ class "uk-heading-line uk-text-center" ]
                 [ span
                     [ class "uk-text-background uk-text-large" ]
                     [ text taggedRecordsText ]
                 ]
-             ]
-                ++ rowsViews
+                :: rowsViews
             )
-
-
-viewPlainRecords : String -> List String -> List Row -> Html Msg
-viewPlainRecords descr headers rows =
-    if List.isEmpty rows then
-        text ""
-
-    else
-        div []
-            [ h3
-                [ class "uk-heading-line uk-text-center" ]
-                [ span [] [ text descr ]
-                ]
-            , Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) <| flattenRows rows
-            ]
 
 
 
@@ -1144,7 +1119,7 @@ mapRowCellsToRemoveColumns : { cells : List ( ColumnHeadingName, Cell ) } -> Row
 mapRowCellsToRemoveColumns row =
     let
         newCells =
-            List.map (\( column, cell ) -> cell) row.cells
+            List.map (\( _, cell ) -> cell) row.cells
     in
     Row newCells
 
@@ -1160,11 +1135,6 @@ setTagInstance theTag headers tableDataTagged =
 
     else
         tableDataTagged
-
-
-getColIndex : List String -> String -> Maybe Int
-getColIndex columns colName =
-    ListExtra.elemIndex colName columns
 
 
 mapRowToTag : String -> Row -> TableDataTagged -> TableDataTagged
@@ -1263,10 +1233,10 @@ compareTwoListsByIndexWith index comparison firstList lastList =
         ( Just firstItem, Just nextItem ) ->
             comparison firstItem nextItem
 
-        ( Nothing, Just nextItem ) ->
+        ( Nothing, Just _ ) ->
             GT
 
-        ( Just firstItem, Nothing ) ->
+        ( Just _, Nothing ) ->
             LT
 
         ( Nothing, Nothing ) ->
@@ -1279,10 +1249,10 @@ compareWithParser parse first next =
         ( Just firstFloat, Just nextFloat ) ->
             compare firstFloat nextFloat
 
-        ( Nothing, Just nextFloat ) ->
+        ( Nothing, Just _ ) ->
             GT
 
-        ( Just firstFloat, Nothing ) ->
+        ( Just _, Nothing ) ->
             LT
 
         ( Nothing, Nothing ) ->
@@ -1295,10 +1265,10 @@ compareDate parseDate_ first next =
         ( Just firstPosix, Just nextPosix ) ->
             Time.Extra.compare firstPosix nextPosix
 
-        ( Nothing, Just nextFloat ) ->
+        ( Nothing, Just _ ) ->
             GT
 
-        ( Just firstFloat, Nothing ) ->
+        ( Just _, Nothing ) ->
             LT
 
         ( Nothing, Nothing ) ->
