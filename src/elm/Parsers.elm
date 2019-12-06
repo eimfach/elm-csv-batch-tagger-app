@@ -89,13 +89,26 @@ parseInt =
         ]
 
 
-{-| @todo #1 Used to Parse a float in a chain of other parsers. Supporting `,` _and_ `.` decimal separators.
+parseFloatLoop : Parser.Parser (List String)
+parseFloatLoop =
+    Parser.loop [] floatHelp
 
-Parsing Float Strings with additional thousands separators is not supported. The parsing will fail in this scenario.
-Consider using `Parser.loop` and `Parser.oneOf`. Also I think it should test if the created number is supported by the js runtime.
-There is an elm lib to do this. Maybe it is easy to implement it by yourself, and the lib is not needed. Also, should mixed separator 'types' be possible ?
-or could it cause a performance issue ? Right now it supports mixed decimal separators using `Parser.oneOf`
 
+{-| @todo #1 Complete & Integrate this into the float parsing chain
+-}
+floatHelp : List String -> Parser.Parser (Parser.Step (List String) (List String))
+floatHelp intList =
+    Parser.oneOf
+        [ Parser.succeed (\aInt -> Parser.Loop (aInt :: intList))
+            |= Parser.getChompedString (Parser.chompWhile Char.isDigit)
+            |. Parser.symbol "."
+        , Parser.succeed ()
+            |> Parser.map (\_ -> Parser.Done (List.reverse intList))
+        ]
+
+
+{-| Used to Parse a float in a chain of other parsers. Supporting `,` _and_ `.` decimal separators.
+@todo #1 Parsing Float Strings with additional thousands separators is not supported. The parsing will fail in this scenario. Consider using `Parser.loop` and `Parser.oneOf`. Also I think it should test if the created number is supported by the js runtime. There is an elm lib to do this. Maybe it is easy to implement it by yourself, and the lib is not needed. Also, should mixed separator 'types' be possible ? or could it cause a performance issue ? Right now it supports mixed decimal separators using `Parser.oneOf`
 -}
 parseChainFloat : Parser.Parser ( String, String, String )
 parseChainFloat =
