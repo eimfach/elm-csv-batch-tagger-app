@@ -68,12 +68,19 @@ parseEuropeanDateToISO8601String ( day, month, year ) =
                         ++ day
                         ++ " month is: "
                         ++ month
+                        ++ " | Maybe your date string is not in european format ?"
 
             else
                 Parser.succeed <| year ++ "-" ++ month ++ "-" ++ day
 
-        _ ->
-            Parser.problem "invalid day or month value in date format"
+        ( Nothing, Just _ ) ->
+            Parser.problem "invalid month value in date format, integer expected."
+
+        ( Just _, Nothing ) ->
+            Parser.problem "invalid day value in date format, integer expected."
+
+        ( Nothing, Nothing ) ->
+            Parser.problem "invalid day *and* month value in date format, integer expected."
 
 
 parseInt : Parser.Parser Int
