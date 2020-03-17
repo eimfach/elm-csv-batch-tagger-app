@@ -7,7 +7,7 @@ import Csv
 import Dict exposing (Dict)
 import File.Download as Download
 import Html exposing (Html, a, button, div, h3, h5, hr, input, label, li, p, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, type_, value)
+import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, target, type_, value)
 import Html.Events exposing (on, onClick, onInput)
 import Html.Lazy
 import Input
@@ -739,7 +739,11 @@ view model =
         [ modal
         , div
             []
-            [ div [ class "uk-margin-top" ]
+            [ div [ class "uk-text-center uk-margin-top" ]
+                [ span [ attribute "uk-icon" "file-text", style "vertical-align" "text-bottom" ] []
+                , a [ href "https://www.robingruenke.com/journal/documentation/tools/documentation-for-my-csv-batch-tagging-tool.html", class "uk-icon-book uk-text-success", target "_blank" ] [ text (Locale.translateViewUserDocumentation model.locale) ]
+                ]
+            , div [ class "uk-margin-top" ]
                 [ button [ class "uk-button uk-align-right", onClick ToggleLocale ]
                     [ text <| Locale.translateLocale model.locale ++ ": " ++ localeTranslation ]
                 , span
