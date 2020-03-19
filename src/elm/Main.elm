@@ -569,7 +569,7 @@ update msg model =
             case ( currentTableDataTaggedByTag, indexCurrentTableDataTaggedByTag ) of
                 ( Just { tag, headers, rows, dataFormats }, Just theIndexCurrentTableDataTaggedByTag ) ->
                     case ListExtra.elemIndex column headers of
-                        Just colummnIndex ->
+                        Just columnIndex ->
                             let
                                 comparison =
                                     case Dict.get column dataFormats of
@@ -594,7 +594,7 @@ update msg model =
                                             Nothing
 
                                 sortedRows =
-                                    sort2dListByColumnWith colummnIndex comparison (rowPlain rows)
+                                    sort2dListByColumnWith columnIndex comparison (rowPlain rows)
                                         |> List.map Row
 
                                 newTableDataTagged =
@@ -1168,7 +1168,8 @@ createTableDataFromCsv : Csv.Csv -> Model -> Model
 createTableDataFromCsv csv model =
     let
         recordsConvertedToRows =
-            List.map Row <| csv.records
+            List.map (\row -> List.map String.trim row) csv.records
+                |> List.map Row
     in
     { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
 
