@@ -71,10 +71,6 @@ type alias HtmlNodeId =
     String
 
 
-type alias Comparison =
-    String -> String -> Order
-
-
 type TaggingOption
     = SingleTagging
     | BatchTagging
@@ -535,7 +531,7 @@ update msg model =
                         |> List.map mapRowCellsToRemoveColumns
 
                 plainMatchedRecords =
-                    rowPlain matchedRowsAsRowType
+                    Table.rowPlain matchedRowsAsRowType
 
                 modalTitleText =
                     Locale.translateRecordsThatWillBeTagged model.locale (List.length plainMatchedRecords)
@@ -567,38 +563,12 @@ update msg model =
                     ListExtra.findIndex (.tag >> (==) theTagToLookup) currentTableDataTaggedList
             in
             case ( currentTableDataTaggedByTag, indexCurrentTableDataTaggedByTag ) of
-                ( Just { tag, headers, rows, dataFormats }, Just theIndexCurrentTableDataTaggedByTag ) ->
-                    case ListExtra.elemIndex column headers of
+                ( Just tableData, Just theIndexCurrentTableDataTaggedByTag ) ->
+                    case ListExtra.elemIndex column tableData.headers of
                         Just columnIndex ->
                             let
-                                comparison =
-                                    case Dict.get column dataFormats of
-                                        Just dataFormat ->
-                                            case dataFormat of
-                                                Table.Text ->
-                                                    Nothing
-
-                                                Table.Float ->
-                                                    Just (compareWithParser Parsers.parseFloat)
-
-                                                Table.Integer ->
-                                                    Just (compareWithParser Parsers.parseInt)
-
-                                                Table.Date ->
-                                                    Just (compareDate Parsers.parseAnySupportedDate)
-
-                                                Table.Currency currency ->
-                                                    Just (compareWithParser <| parseCurrencyToFloat currency)
-
-                                        Nothing ->
-                                            Nothing
-
-                                sortedRows =
-                                    sort2dListByColumnWith columnIndex comparison (rowPlain rows)
-                                        |> List.map Row
-
                                 newTableDataTagged =
-                                    TableDataTagged tag headers sortedRows dataFormats
+                                    Table.sort column columnIndex tableData
 
                                 newTableDataTaggedList =
                                     ListExtra.setAt theIndexCurrentTableDataTaggedByTag newTableDataTagged currentTableDataTaggedList
@@ -661,7 +631,7 @@ viewModalContent locale modalContent =
                 text <| Locale.translateNoMatchingRecordsFound locale
 
             else
-                Table.view (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainRecords
+                Table.view Table.Responsive (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainRecords
 
         ViewInfo info ->
             text info
@@ -1094,6 +1064,7 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
                     |> List.map
                         (\tableDataTagged ->
                             Table.viewWithTagData
+                                Table.Responsive
                                 -- use original header list for Tabledownload, since we modified it before
                                 (TableDownload <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows tableDataTagged.dataFormats)
                                 tableDataTagged
@@ -1154,11 +1125,6 @@ mapRowToTag aTag aRow aTaggedTable =
         aTaggedTable
 
 
-rowPlain : List Row -> List (List String)
-rowPlain recordList =
-    List.map .cells recordList
-
-
 parseCsvString separator contents =
     contents
         |> Csv.parseWith separator
@@ -1201,80 +1167,3 @@ setCSVSemicolonsInList aList =
                 cleanedVal
         )
         aList
-
-
-sort2dListByColumnWith : Int -> Maybe Comparison -> List (List String) -> List (List String)
-sort2dListByColumnWith index comparison the2dList =
-    let
-        compare_ =
-            Maybe.withDefault compare comparison
-
-        new2dList =
-            List.sortWith (compareTwoListsByIndexWith index compare_) the2dList
-    in
-    if new2dList == the2dList then
-        List.sortWith (compareTwoListsByIndexWith index (flippedComparison compare_)) the2dList
-
-    else
-        new2dList
-
-
-flippedComparison : Comparison -> String -> String -> Order
-flippedComparison compare_ a b =
-    case compare_ a b of
-        LT ->
-            GT
-
-        EQ ->
-            EQ
-
-        GT ->
-            LT
-
-
-compareTwoListsByIndexWith : Int -> Comparison -> List String -> List String -> Order
-compareTwoListsByIndexWith index comparison firstList lastList =
-    case ( ListExtra.getAt index firstList, ListExtra.getAt index lastList ) of
-        ( Just firstItem, Just nextItem ) ->
-            comparison firstItem nextItem
-
-        ( Nothing, Just _ ) ->
-            GT
-
-        ( Just _, Nothing ) ->
-            LT
-
-        ( Nothing, Nothing ) ->
-            LT
-
-
-compareWithParser : Parser.Parser comparable -> Comparison
-compareWithParser parse first next =
-    case ( Parser.run parse first |> Result.toMaybe, Parser.run parse next |> Result.toMaybe ) of
-        ( Just firstFloat, Just nextFloat ) ->
-            compare firstFloat nextFloat
-
-        ( Nothing, Just _ ) ->
-            GT
-
-        ( Just _, Nothing ) ->
-            LT
-
-        ( Nothing, Nothing ) ->
-            LT
-
-
-compareDate : Parser.Parser Time.Posix -> Comparison
-compareDate parseDate_ first next =
-    case ( Parser.run parseDate_ first |> Result.toMaybe, Parser.run parseDate_ next |> Result.toMaybe ) of
-        ( Just firstPosix, Just nextPosix ) ->
-            Time.Extra.compare firstPosix nextPosix
-
-        ( Nothing, Just _ ) ->
-            GT
-
-        ( Just _, Nothing ) ->
-            LT
-
-        ( Nothing, Nothing ) ->
-            LT

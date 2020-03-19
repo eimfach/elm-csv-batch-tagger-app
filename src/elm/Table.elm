@@ -1,4 +1,4 @@
-module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, setADataFormat, view, viewSingle, viewWithTagData)
+module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
 
 import Dict exposing (Dict)
 import Helpers exposing (isResultOk)
@@ -11,6 +11,8 @@ import List.Extra
 import NavBar
 import Parser exposing ((|.), (|=))
 import Parsers
+import Time
+import Time.Extra
 
 
 
@@ -59,6 +61,11 @@ type alias TableDataTagged =
     , rows : List Row
     , dataFormats : Dict ColumnHeadingName DataFormat
     }
+
+
+type Responsive
+    = Responsive
+    | Unresponsive
 
 
 
@@ -380,9 +387,18 @@ viewSingle cellAttr headers record =
         ]
 
 
-view : List ( String, msg ) -> List (List (Html msg)) -> Html msg
-view headers rows =
-    table [ class "uk-table uk-table-responsive uk-table-divider uk-table-middle uk-table-small" ]
+view : Responsive -> List ( String, msg ) -> List (List (Html msg)) -> Html msg
+view responsive headers rows =
+    let
+        classes =
+            case responsive of
+                Responsive ->
+                    "uk-table uk-table-responsive uk-table-divider uk-table-middle uk-table-small"
+
+                Unresponsive ->
+                    "uk-table uk-table-divider uk-table-middle uk-table-small"
+    in
+    table [ class classes ]
         [ thead []
             [ viewRow th [] <| List.map (\( column, msg ) -> span [ onClick msg ] [ text column ]) headers ]
         , tbody []
@@ -399,8 +415,8 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : msg -> { tag : Tag, headers : List ( ColumnHeadingName, msg ), rows : List Row, dataFormats : Dict ColumnHeadingName DataFormat } -> Html msg
-viewWithTagData exportAction { tag, headers, rows } =
+viewWithTagData : Responsive -> msg -> { tag : Tag, headers : List ( ColumnHeadingName, msg ), rows : List Row, dataFormats : Dict ColumnHeadingName DataFormat } -> Html msg
+viewWithTagData responsive exportAction { tag, headers, rows } =
     let
         plainPreparedRows =
             rows |> flattenRows |> List.map (List.map text)
@@ -417,6 +433,133 @@ viewWithTagData exportAction { tag, headers, rows } =
             , NavBar.viewIconNav [ ( NavBar.Export, exportAction, [] ) ]
             ]
         , view
+            responsive
             headers
             plainPreparedRows
         ]
+
+
+
+-- SORTING
+
+
+type alias Comparison =
+    String -> String -> Order
+
+
+sort : ColumnHeadingName -> Int -> TableDataTagged -> TableDataTagged
+sort column columnIndex tableData =
+    let
+        comparison =
+            case Dict.get column tableData.dataFormats of
+                Just dataFormat ->
+                    case dataFormat of
+                        Text ->
+                            Nothing
+
+                        Float ->
+                            Just (compareWithParser Parsers.parseFloat)
+
+                        Integer ->
+                            Just (compareWithParser Parsers.parseInt)
+
+                        Date ->
+                            Just (compareDate Parsers.parseAnySupportedDate)
+
+                        Currency currency ->
+                            Just (compareWithParser <| parseCurrencyToFloat currency)
+
+                Nothing ->
+                    Nothing
+
+        sortedRows =
+            sort2dListByColumnWith columnIndex comparison (rowPlain tableData.rows)
+                |> List.map Row
+    in
+    TableDataTagged tableData.tag tableData.headers sortedRows tableData.dataFormats
+
+
+sort2dListByColumnWith : Int -> Maybe Comparison -> List (List String) -> List (List String)
+sort2dListByColumnWith index comparison the2dList =
+    let
+        compare_ =
+            Maybe.withDefault compare comparison
+
+        new2dList =
+            List.sortWith (compareTwoListsByIndexWith index compare_) the2dList
+    in
+    if new2dList == the2dList then
+        List.sortWith (compareTwoListsByIndexWith index (flippedComparison compare_)) the2dList
+
+    else
+        new2dList
+
+
+flippedComparison : Comparison -> String -> String -> Order
+flippedComparison compare_ a b =
+    case compare_ a b of
+        LT ->
+            GT
+
+        EQ ->
+            EQ
+
+        GT ->
+            LT
+
+
+compareTwoListsByIndexWith : Int -> Comparison -> List String -> List String -> Order
+compareTwoListsByIndexWith index comparison firstList lastList =
+    case ( List.Extra.getAt index firstList, List.Extra.getAt index lastList ) of
+        ( Just firstItem, Just nextItem ) ->
+            comparison firstItem nextItem
+
+        ( Nothing, Just _ ) ->
+            GT
+
+        ( Just _, Nothing ) ->
+            LT
+
+        ( Nothing, Nothing ) ->
+            LT
+
+
+compareWithParser : Parser.Parser comparable -> Comparison
+compareWithParser parse first next =
+    case ( Parser.run parse first |> Result.toMaybe, Parser.run parse next |> Result.toMaybe ) of
+        ( Just firstFloat, Just nextFloat ) ->
+            compare firstFloat nextFloat
+
+        ( Nothing, Just _ ) ->
+            GT
+
+        ( Just _, Nothing ) ->
+            LT
+
+        ( Nothing, Nothing ) ->
+            LT
+
+
+compareDate : Parser.Parser Time.Posix -> Comparison
+compareDate parseDate_ first next =
+    case ( Parser.run parseDate_ first |> Result.toMaybe, Parser.run parseDate_ next |> Result.toMaybe ) of
+        ( Just firstPosix, Just nextPosix ) ->
+            Time.Extra.compare firstPosix nextPosix
+
+        ( Nothing, Just _ ) ->
+            GT
+
+        ( Just _, Nothing ) ->
+            LT
+
+        ( Nothing, Nothing ) ->
+            LT
+
+
+
+-- HELPERS
+
+
+rowPlain : List Row -> List (List String)
+rowPlain recordList =
+    List.map .cells recordList
