@@ -59,11 +59,11 @@ records =
 
 
 headers =
-    [ "Lorem", "Ipsum", "Solor", "Dit", "Amed", "Consectetur" ]
+    [ "Dollar", "Europ. Date", "ISO8601 Date", "Int", "Mixed Float", "Mixed Date" ]
 
 
 init =
-    Table.TableDataTagged "Finance" headers (List.map Table.Row records) Dict.empty
+    Table.TableDataTagged "" headers (List.map Table.Row records) Dict.empty
         |> Table.detectDataFormats
 
 

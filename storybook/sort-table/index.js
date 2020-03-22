@@ -6720,7 +6720,7 @@ var $author$project$Table$detectDataFormats = function (taggedTable) {
 };
 var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
 var $author$project$StoryBook$SortTable$headers = _List_fromArray(
-	['Lorem', 'Ipsum', 'Solor', 'Dit', 'Amed', 'Consectetur']);
+	['Dollar', 'Europ. Date', 'ISO8601 Date', 'Int', 'Mixed Float', 'Mixed Date']);
 var $author$project$StoryBook$SortTable$records = _List_fromArray(
 	[
 		_List_fromArray(
@@ -6739,7 +6739,7 @@ var $author$project$StoryBook$SortTable$records = _List_fromArray(
 var $author$project$StoryBook$SortTable$init = $author$project$Table$detectDataFormats(
 	A4(
 		$author$project$Table$TableDataTagged,
-		'Finance',
+		'',
 		$author$project$StoryBook$SortTable$headers,
 		A2($elm$core$List$map, $author$project$Table$Row, $author$project$StoryBook$SortTable$records),
 		$elm$core$Dict$empty));
