@@ -18,13 +18,10 @@ import Locale exposing (Locale)
 import Modal
 import NavBar
 import Parser
-import Parsers
 import Ports.FileReader exposing (FileData, decodeFileContents, fileContentRead, fileSelected)
 import Regex
 import Set exposing (Set)
 import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
-import Time
-import Time.Extra
 
 
 
@@ -1125,6 +1122,7 @@ mapRowToTag aTag aRow aTaggedTable =
         aTaggedTable
 
 
+parseCsvString : Char -> String -> Result (List Parser.DeadEnd) Csv.Csv
 parseCsvString separator contents =
     contents
         |> Csv.parseWith separator

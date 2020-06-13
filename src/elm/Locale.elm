@@ -171,10 +171,10 @@ translateInfoOnHowDataIsStored : Translation
 translateInfoOnHowDataIsStored locale =
     case locale of
         EN ->
-            "Your data is stored only locally in your Browser."
+            "Your data is stored locally in your Browser solely."
 
         DE ->
-            "Deine Daten werden nur lokal im Browser gespeichert."
+            "Deine Daten werden ausschließlich lokal im Browser gespeichert."
 
 
 translateSave : Translation
@@ -375,24 +375,3 @@ translateApplyTags locale count =
 
         DE ->
             "Ordne Einträge einer Kategorie zu (" ++ String.fromInt count ++ " Einträge übrig)"
-
-
-
-{--
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation
- : Translation        
- --}
