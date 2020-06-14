@@ -1,4 +1,4 @@
-module Modal exposing (Button, DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
+module Modal exposing (Button(..), DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
 
 import Button
 import Html exposing (Html, button, div, h2, text)
@@ -8,8 +8,9 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 
 
-type alias Button msg =
-    ( Button.Type, msg, Title )
+type Button msg
+    = DefaultButton Button.Type msg Title
+    | IconButton Button.Type msg Title Button.ActionType
 
 
 type alias State content =
@@ -89,8 +90,13 @@ parseDisplayProperties encoded =
 
 
 viewModalButton : Button msg -> Html msg
-viewModalButton ( button, msg, descr ) =
-    Button.view msg button Button.NoActionType descr
+viewModalButton button =
+    case button of
+        DefaultButton btnType msg title ->
+            Button.view msg btnType Button.NoActionType title
+
+        IconButton btnType msg title actionType ->
+            Button.view msg btnType actionType title
 
 
 view : DisplayProperties -> msg -> String -> Html msg -> List (Button msg) -> Html msg

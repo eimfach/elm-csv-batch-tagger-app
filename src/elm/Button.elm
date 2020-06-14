@@ -9,6 +9,7 @@ import Set
 type ActionType
     = Add
     | Remove
+    | Import
     | NoActionType
 
 
@@ -77,6 +78,9 @@ mapButtonStyles btnType =
 mapButtonActionType : ActionType -> List (Html.Attribute msg)
 mapButtonActionType btnActionType =
     case btnActionType of
+        Import ->
+            [ attribute "uk-icon" "icon: pull" ]
+
         Add ->
             [ attribute "uk-icon" "icon: plus-circle" ]
 
@@ -96,10 +100,8 @@ view :
 view msg btnType btnActionType btnText =
     button
         [ type_ "button", onClick msg, class (mapButtonStyles btnType) ]
-        [ span
-            (mapButtonActionType btnActionType)
-            [ text btnText
-            ]
+        [ span (mapButtonActionType btnActionType) []
+        , span [] [ text <| "  " ++ btnText ]
         ]
 
 

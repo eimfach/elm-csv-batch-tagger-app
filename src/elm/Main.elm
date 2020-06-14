@@ -16,7 +16,7 @@ import Input
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra as ListExtra
-import Locale exposing (Locale)
+import Locale exposing (Locale, translateImportData)
 import Modal
 import NavBar
 import Parser
@@ -80,7 +80,8 @@ type UndoStrategy
 
 
 type ModalContent
-    = ViewMapRecordsToTag (List ColumnHeadingName) (List (List String)) Tag
+    = ViewImportFileRecords (List ColumnHeadingName) (List (List String))
+    | ViewMapRecordsToTag (List ColumnHeadingName) (List (List String)) Tag
     | ViewInfo String
     | ViewWarningDeleteLocalData
 
@@ -197,7 +198,12 @@ encodeShowModal showModal =
 modalContentDecoder : Decode.Decoder ModalContent
 modalContentDecoder =
     Decode.oneOf
-        [ Decode.field "viewMapRecordsToTag"
+        [ Decode.field "viewImportFileRecords"
+            (Decode.map2 ViewImportFileRecords
+                (Decode.field "columns" <| Decode.list Decode.string)
+                (Decode.field "records" <| Decode.list (Decode.list Decode.string))
+            )
+        , Decode.field "viewMapRecordsToTag"
             (Decode.map3 ViewMapRecordsToTag
                 (Decode.field "columns" <| Decode.list Decode.string)
                 (Decode.field "records" <| Decode.list (Decode.list Decode.string))
@@ -211,6 +217,18 @@ modalContentDecoder =
 encodeModalContent : ModalContent -> Encode.Value
 encodeModalContent modalContent_ =
     case modalContent_ of
+        ViewImportFileRecords columns records ->
+            let
+                valuesEncoding =
+                    Encode.object
+                        [ ( "columns", Encode.list Encode.string columns )
+                        , ( "records", Encode.list (Encode.list Encode.string) records )
+                        ]
+            in
+            Encode.object
+                [ ( "viewImportFileRecords", valuesEncoding )
+                ]
+
         ViewMapRecordsToTag columns records tag ->
             let
                 valuesEncoding =
@@ -243,7 +261,7 @@ encodeModalContent modalContent_ =
 -}
 type Msg
     = RemoveTag String
-    | ShowDeleteLocalData
+    | UserClickedRequestDeleteDataButton
     | DeleteLocalData
     | ToggleLocale
     | SetLocale String
@@ -259,7 +277,7 @@ type Msg
     | ShowMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
     | UserClickedFileSelectButton
-    | UserSelectedFile File
+    | UserSelectedFileFromSysDialog File
     | CmdCompletedFileLoadingTask String
 
 
@@ -278,7 +296,44 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ShowDeleteLocalData ->
+        UserClickedFileSelectButton ->
+            ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
+
+        UserSelectedFileFromSysDialog file ->
+            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
+
+        CmdCompletedFileLoadingTask content ->
+            let
+                showImportConfirmation csv model_ =
+                    updateShowModal
+                        Modal.RegularView
+                        (translateImportData model_.locale)
+                        (ViewImportFileRecords csv.headers csv.records)
+                        model_
+
+                newModel =
+                    case parseCsvString ';' content of
+                        Ok csv ->
+                            showImportConfirmation csv model
+
+                        Err _ ->
+                            case parseCsvString ',' content of
+                                Ok csv ->
+                                    -- @TODO: show dialog first
+                                    showImportConfirmation csv model
+
+                                -- createTableDataFromCsv csv model
+                                Err _ ->
+                                    updateShowModalInfo
+                                        (Locale.translateErrorHeading model.locale)
+                                        (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
+                                        model
+            in
+            ( newModel |> updateResetBatchTaggingOptions
+            , Cmd.none
+            )
+
+        UserClickedRequestDeleteDataButton ->
             ( updateShowModal Modal.RegularView (Locale.translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
             , Cmd.none
             )
@@ -548,34 +603,6 @@ update msg model =
                 _ ->
                     ( updateShowModalInfo "Sorting Tables" (ViewInfo "TableData lookup failed.") model, Cmd.none )
 
-        UserClickedFileSelectButton ->
-            ( model, File.Select.file [ "text/csv" ] UserSelectedFile )
-
-        UserSelectedFile file ->
-            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
-
-        CmdCompletedFileLoadingTask content ->
-            let
-                newModel =
-                    case parseCsvString ';' content of
-                        Ok csv ->
-                            createTableDataFromCsv csv model
-
-                        Err _ ->
-                            case parseCsvString ',' content of
-                                Ok csv ->
-                                    createTableDataFromCsv csv model
-
-                                Err _ ->
-                                    updateShowModalInfo
-                                        (Locale.translateErrorHeading model.locale)
-                                        (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
-                                        model
-            in
-            ( newModel |> updateResetBatchTaggingOptions
-            , Cmd.none
-            )
-
 
 updateSetLocale : Locale -> Model -> Model
 updateSetLocale locale model =
@@ -617,15 +644,30 @@ subscriptions _ =
 -- VIEW
 
 
+viewRecords : List ColumnHeadingName -> List (List String) -> Html.Html Msg
+viewRecords headers records =
+    Table.view
+        Table.Responsive
+        (List.map (\column -> ( column, NoOp )) headers)
+        (List.map (List.map text) records)
+
+
 viewModalContent : Locale -> ModalContent -> Html.Html Msg
 viewModalContent locale modalContent =
     case modalContent of
+        ViewImportFileRecords headers records ->
+            if List.isEmpty records then
+                text <| Locale.translateImportDataNoRecordsFound locale
+
+            else
+                viewRecords headers records
+
         ViewMapRecordsToTag headers plainRecords _ ->
             if List.isEmpty plainRecords then
                 text <| Locale.translateNoMatchingRecordsFound locale
 
             else
-                Table.view Table.Responsive (List.map (\column -> ( column, NoOp )) headers) <| List.map (List.map text) plainRecords
+                viewRecords headers plainRecords
 
         ViewInfo info ->
             text info
@@ -637,9 +679,19 @@ viewModalContent locale modalContent =
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
+        ViewImportFileRecords _ records ->
+            if List.isEmpty records then
+                [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
+                ]
+
+            else
+                [ Modal.IconButton Button.Primary CloseModal (Locale.translateImport locale) Button.Import
+                , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
+                ]
+
         ViewMapRecordsToTag _ plainRecords tag ->
             if List.isEmpty plainRecords then
-                [ ( Button.Secondary, CloseModal, "OK" )
+                [ Modal.DefaultButton Button.Secondary CloseModal "Ok"
                 ]
 
             else
@@ -647,17 +699,17 @@ getModalButtons locale modalContent =
                     saveMsg =
                         MapRecordToTag (Multiple <| List.map Row plainRecords) tag
                 in
-                [ ( Button.Primary, saveMsg, Locale.translateSave locale )
-                , ( Button.Secondary, CloseModal, Locale.translateCancel locale )
+                [ Modal.DefaultButton Button.Primary saveMsg (Locale.translateSave locale)
+                , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
         ViewInfo _ ->
-            [ ( Button.Secondary, CloseModal, "OK" )
+            [ Modal.DefaultButton Button.Secondary CloseModal "Ok"
             ]
 
         ViewWarningDeleteLocalData ->
-            [ ( Button.Secondary, DeleteLocalData, Locale.translateProceed locale )
-            , ( Button.Primary, CloseModal, Locale.translateCancel locale )
+            [ Modal.DefaultButton Button.Secondary DeleteLocalData (Locale.translateProceed locale)
+            , Modal.DefaultButton Button.Primary CloseModal (Locale.translateCancel locale)
             ]
 
 
@@ -714,7 +766,7 @@ view model =
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
-                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
+                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick UserClickedRequestDeleteDataButton ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
                 [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) ]

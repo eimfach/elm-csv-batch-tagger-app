@@ -1,4 +1,4 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateViewUserDocumentation, translateWarningDeleteLocalData)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateViewUserDocumentation, translateWarningDeleteLocalData)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -375,3 +375,33 @@ translateApplyTags locale count =
 
         DE ->
             "Ordne Einträge einer Kategorie zu (" ++ String.fromInt count ++ " Einträge übrig)"
+
+
+translateImportData : Locale -> String
+translateImportData locale =
+    case locale of
+        EN ->
+            "Import Data from CSV File (TODO: replaces previous data !)"
+
+        DE ->
+            "Importiere Daten von einer CSV Datei (TODO: ersetzt bisherige Daten !)"
+
+
+translateImportDataNoRecordsFound : Locale -> String
+translateImportDataNoRecordsFound locale =
+    case locale of
+        EN ->
+            "Your data does not include any records."
+
+        DE ->
+            "Deine Daten beinhalten keine Einträge."
+
+
+translateImport : Locale -> String
+translateImport locale =
+    case locale of
+        EN ->
+            "Import"
+
+        DE ->
+            "Importieren"
