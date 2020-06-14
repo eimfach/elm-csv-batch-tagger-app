@@ -5,7 +5,9 @@ import Browser.Navigation
 import Button
 import Csv
 import Dict exposing (Dict)
+import File exposing (File)
 import File.Download as Download
+import File.Select
 import Html exposing (Html, a, button, div, h3, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, target, type_, value)
 import Html.Events exposing (on, onClick, onInput)
@@ -18,10 +20,10 @@ import Locale exposing (Locale)
 import Modal
 import NavBar
 import Parser
-import Ports.FileReader exposing (FileData, decodeFileContents, fileContentRead, fileSelected)
 import Regex
 import Set exposing (Set)
 import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
+import Task
 
 
 
@@ -237,6 +239,8 @@ encodeModalContent modalContent_ =
 -- UPDATE
 
 
+{-| SomeoneDidSomethingSomewhereAndSomeHow
+-}
 type Msg
     = RemoveTag String
     | ShowDeleteLocalData
@@ -245,8 +249,6 @@ type Msg
     | SetLocale String
     | TagInput String
     | CreateTagFromBuffer
-    | FileSelected
-    | ParseToCsv FileData
     | MapRecordToTag (Bucket Row) Tag
     | SearchPatternInput ColumnHeadingName SearchPattern
     | SetTaggingOption TaggingOption
@@ -256,6 +258,9 @@ type Msg
     | TableDownload TableDataTagged
     | ShowMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
+    | UserClickedFileSelectButton
+    | UserSelectedFile File
+    | CmdCompletedFileLoadingTask String
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -332,41 +337,6 @@ update msg model =
                         ( ( "", False ), "" )
             in
             ( { model | tags = newTags, addTagInputBuffer = addTagInputBuffer, addTagInputError = addTagInputError }, Cmd.none )
-
-        FileSelected ->
-            ( model, fileSelected model.fileUploadPointerId )
-
-        ParseToCsv fileData ->
-            case decodeFileContents fileData.contents of
-                Ok decodedData ->
-                    let
-                        newModel =
-                            case parseCsvString ';' decodedData of
-                                Ok csv ->
-                                    createTableDataFromCsv csv model
-
-                                Err _ ->
-                                    case parseCsvString ',' decodedData of
-                                        Ok csv ->
-                                            createTableDataFromCsv csv model
-
-                                        Err _ ->
-                                            updateShowModalInfo
-                                                (Locale.translateErrorHeading model.locale)
-                                                (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
-                                                model
-                    in
-                    ( newModel |> updateResetBatchTaggingOptions
-                    , Cmd.none
-                    )
-
-                Err error ->
-                    ( updateShowModalInfo
-                        (Locale.translateErrorHeading model.locale)
-                        (ViewInfo <| "There was an error reading your file : " ++ error)
-                        model
-                    , Cmd.none
-                    )
 
         MapRecordToTag recordBucket theTag ->
             let
@@ -578,6 +548,34 @@ update msg model =
                 _ ->
                     ( updateShowModalInfo "Sorting Tables" (ViewInfo "TableData lookup failed.") model, Cmd.none )
 
+        UserClickedFileSelectButton ->
+            ( model, File.Select.file [ "text/csv" ] UserSelectedFile )
+
+        UserSelectedFile file ->
+            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
+
+        CmdCompletedFileLoadingTask content ->
+            let
+                newModel =
+                    case parseCsvString ';' content of
+                        Ok csv ->
+                            createTableDataFromCsv csv model
+
+                        Err _ ->
+                            case parseCsvString ',' content of
+                                Ok csv ->
+                                    createTableDataFromCsv csv model
+
+                                Err _ ->
+                                    updateShowModalInfo
+                                        (Locale.translateErrorHeading model.locale)
+                                        (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
+                                        model
+            in
+            ( newModel |> updateResetBatchTaggingOptions
+            , Cmd.none
+            )
+
 
 updateSetLocale : Locale -> Model -> Model
 updateSetLocale locale model =
@@ -611,8 +609,7 @@ updateResetBatchTaggingOptions model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ fileContentRead ParseToCsv
-        , getLocale SetLocale
+        [ getLocale SetLocale
         ]
 
 
@@ -720,7 +717,7 @@ view model =
                 , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick ShowDeleteLocalData ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
-                [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) FileSelected ]
+                [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) ]
             , div []
                 [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
@@ -802,8 +799,8 @@ viewTagCloud action tags =
 -- VIEW SECTIONS
 
 
-viewFileUploadSection : String -> msg -> Html msg
-viewFileUploadSection headerText changeMsg =
+viewFileUploadSection : String -> Html Msg
+viewFileUploadSection headerText =
     div [ class "uk-section uk-section-small" ]
         [ h3
             [ class "uk-heading-line uk-text-center" ]
@@ -811,11 +808,9 @@ viewFileUploadSection headerText changeMsg =
             ]
         , div
             [ class "uk-padding" ]
-            [ input
-                [ type_ "file", id "csv-upload", name "csv-upload", on "change" (Decode.succeed changeMsg) ]
-                []
-            , button
-                [ class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
+            [ button
+                [ onClick UserClickedFileSelectButton
+                , class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
                 ]
                 [ label
                     [ attribute "uk-icon" "icon: upload"
