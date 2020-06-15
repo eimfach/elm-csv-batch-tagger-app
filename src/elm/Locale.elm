@@ -1,4 +1,4 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateViewUserDocumentation, translateWarningDeleteLocalData)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -405,3 +405,13 @@ translateImport locale =
 
         DE ->
             "Importieren"
+
+
+translateViewSourceCode : Locale -> String
+translateViewSourceCode locale =
+    case locale of
+        DE ->
+            "Quellcode anzeigen"
+
+        EN ->
+            "View Source Code"

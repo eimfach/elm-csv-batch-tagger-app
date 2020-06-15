@@ -257,7 +257,7 @@ encodeModalContent modalContent_ =
 -- UPDATE
 
 
-{-| SomeoneDidSomethingSomewhereAndSomeHow
+{-| Naming Schema : SomeoneDidSomethingSomewhereAndSomeHow
 -}
 type Msg
     = RemoveTag String
@@ -279,6 +279,7 @@ type Msg
     | UserClickedFileSelectButton
     | UserSelectedFileFromSysDialog File
     | CmdCompletedFileLoadingTask String
+    | UserClickedImportFileDataButton (List ColumnHeadingName) (List (List String))
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -296,11 +297,8 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        UserClickedFileSelectButton ->
-            ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
-
-        UserSelectedFileFromSysDialog file ->
-            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
+        UserClickedImportFileDataButton headers records ->
+            ( updateCloseModal <| createTableDataFromCsv (Csv.Csv headers records) model, Cmd.none )
 
         CmdCompletedFileLoadingTask content ->
             let
@@ -319,10 +317,8 @@ update msg model =
                         Err _ ->
                             case parseCsvString ',' content of
                                 Ok csv ->
-                                    -- @TODO: show dialog first
                                     showImportConfirmation csv model
 
-                                -- createTableDataFromCsv csv model
                                 Err _ ->
                                     updateShowModalInfo
                                         (Locale.translateErrorHeading model.locale)
@@ -332,6 +328,12 @@ update msg model =
             ( newModel |> updateResetBatchTaggingOptions
             , Cmd.none
             )
+
+        UserClickedFileSelectButton ->
+            ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
+
+        UserSelectedFileFromSysDialog file ->
+            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
 
         UserClickedRequestDeleteDataButton ->
             ( updateShowModal Modal.RegularView (Locale.translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
@@ -679,13 +681,13 @@ viewModalContent locale modalContent =
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
-        ViewImportFileRecords _ records ->
+        ViewImportFileRecords headers records ->
             if List.isEmpty records then
                 [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
             else
-                [ Modal.IconButton Button.Primary CloseModal (Locale.translateImport locale) Button.Import
+                [ Modal.IconButton Button.Primary (UserClickedImportFileDataButton headers records) (Locale.translateImport locale) Button.Import
                 , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
@@ -757,22 +759,23 @@ view model =
             []
             [ div [ class "uk-text-center uk-margin-top" ]
                 [ span [ attribute "uk-icon" "file-text", style "vertical-align" "text-bottom" ] []
-                , a [ href "https://www.robingruenke.com/journal/documentation/tools/documentation-for-my-csv-batch-tagging-tool.html", class "uk-icon-book uk-text-success", target "_blank" ] [ text (Locale.translateViewUserDocumentation model.locale) ]
+                , a [ href "https://www.robingruenke.com/journal/documentation/tools/documentation-for-my-csv-batch-tagging-tool.html", class "uk-text-success", target "_blank" ] [ text <| " " ++ Locale.translateViewUserDocumentation model.locale ]
+                , span [] [ text " | " ]
+                , span [ attribute "uk-icon" "github", style "vertical-align" "text-bottom" ] []
+                , a [ href "https://github.com/eimfach/elm-csv-batch-tagger-app", target "_blank" ] [ text <| " " ++ Locale.translateViewSourceCode model.locale ]
                 ]
+            , hr [] []
             , div [ class "uk-margin-top" ]
-                [ button [ class "uk-button uk-align-right", onClick ToggleLocale ]
+                [ button [ class "uk-button uk-button-small uk-align-right", onClick ToggleLocale ]
                     [ text <| Locale.translateLocale model.locale ++ ": " ++ localeTranslation ]
+                , button [ class "uk-button uk-button-small uk-align-right uk-button-danger", onClick UserClickedRequestDeleteDataButton ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
                 , span
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
-                , button [ class "uk-button-link uk-margin-left", style "border" "none", onClick UserClickedRequestDeleteDataButton ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
                 ]
             , div []
                 [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) ]
-            , div []
-                [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
-                ]
             , div []
                 [ viewTaggingSection
                     model.locale
@@ -783,6 +786,9 @@ view model =
                     currentRow
                     tableData.rows
                     taggingSectionNav
+                ]
+            , div []
+                [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             ]
         , div
