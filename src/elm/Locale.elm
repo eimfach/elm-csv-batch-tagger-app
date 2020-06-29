@@ -1,7 +1,8 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateBatchTagging, translateCancel, translateDefaultTags, translateDeleteYourLocalData, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateInfoOnHowDataIsStored, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Parsers exposing (parseFloat)
 
 
 type Locale
@@ -381,10 +382,10 @@ translateImportData : Locale -> String
 translateImportData locale =
     case locale of
         EN ->
-            "Import Data from CSV File (TODO: replaces previous data !)"
+            "Import Data from CSV File"
 
         DE ->
-            "Importiere Daten von einer CSV Datei (TODO: ersetzt bisherige Daten !)"
+            "Importiere Daten von einer CSV Datei"
 
 
 translateImportDataNoRecordsFound : Locale -> String
@@ -395,6 +396,16 @@ translateImportDataNoRecordsFound locale =
 
         DE ->
             "Deine Daten beinhalten keine Einträge."
+
+
+translateImportDataNoRecordsFoundTitle : Locale -> String
+translateImportDataNoRecordsFoundTitle locale =
+    case locale of
+        EN ->
+            "No records"
+
+        DE ->
+            "Keine Einträge"
 
 
 translateImport : Locale -> String
@@ -415,3 +426,123 @@ translateViewSourceCode locale =
 
         EN ->
             "View Source Code"
+
+
+translateCheckboxStackData : Locale -> String
+translateCheckboxStackData locale =
+    case locale of
+        EN ->
+            "Stack data ?"
+
+        DE ->
+            "Aktuelle Datensätze behalten ?"
+
+
+translateWarningLabel : Locale -> String
+translateWarningLabel locale =
+    case locale of
+        EN ->
+            "Warning"
+
+        DE ->
+            "Warnung"
+
+
+translateUncheckStackDataWarning : Locale -> String
+translateUncheckStackDataWarning locale =
+    case locale of
+        EN ->
+            "Disabling this means all untagged data will be discarded."
+
+        DE ->
+            "Deaktivierung wird alle unkategorisierten Daten verwerfen."
+
+
+translateEmptyFileTitle : Locale -> String
+translateEmptyFileTitle locale =
+    case locale of
+        EN ->
+            "Empty File"
+
+        DE ->
+            "Leere Datei"
+
+
+translateEmptyFileText : Locale -> String
+translateEmptyFileText locale =
+    case locale of
+        EN ->
+            "Your file seems to be empty. Please choose another one."
+
+        DE ->
+            "Deine Datei scheint keinen Inhalt zu haben. Bitte wähle eine andere Datei."
+
+
+translateIrregularRowsTitle : Locale -> String
+translateIrregularRowsTitle locale =
+    case locale of
+        EN ->
+            "Irregular rows"
+
+        DE ->
+            "Unreguläre Einträge"
+
+
+translateIrregularRowsText : Locale -> Int -> String
+translateIrregularRowsText locale count =
+    case locale of
+        EN ->
+            "Your data contains " ++ String.fromInt count ++ " irregular rows in length"
+
+        DE ->
+            "Deine Daten haben beinhalten " ++ String.fromInt count ++ " irregulär lange Einträge"
+
+
+translateDrop : Locale -> String
+translateDrop locale =
+    case locale of
+        EN ->
+            "Drop & Proceed"
+
+        DE ->
+            "Verwerfen & Fortfahren"
+
+
+translateAskForDrop : Locale -> String
+translateAskForDrop locale =
+    case locale of
+        EN ->
+            "Do you want to drop theses records and proceed ?"
+
+        DE ->
+            "Möchtest du diese Einträge verwerfen und fortfahren ?"
+
+
+translateIncompatibleDataTitle : Locale -> String
+translateIncompatibleDataTitle locale =
+    case locale of
+        EN ->
+            "Incompatible Data"
+
+        DE ->
+            "Inkompatible Daten"
+
+
+translateIncompatibleDataIntro : Locale -> String
+translateIncompatibleDataIntro locale =
+    case locale of
+        EN ->
+            "The data you are trying to import is different then the data in your current workspace. Your workspace data is structured like this: "
+
+        DE ->
+            "Die Daten die du importieren willst, unterscheiden sich von denen in deinem workspace. Deine workspace Daten sind wie folgt strukturiert: "
+
+
+translateIncompatibleDataComparison : Locale -> String
+translateIncompatibleDataComparison locale =
+    case locale of
+        EN ->
+            "Where as the data you are trying to import is structured like this: "
+
+        DE ->
+            "Zum Vergleich, die Daten die du importieren willst, sind wie folgt strukturiert: "

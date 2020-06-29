@@ -16,7 +16,7 @@
             "elm/regex": "1.0.0",
             "elm/time": "1.0.0",
             "elm-community/list-extra": "8.2.2",
-            "periodic/elm-csv": "2.0.1",
+            "jonoabroad/commatosed": "1.0.0",
             "waratuman/time-extra": "1.1.0"
         },
         "indirect": {

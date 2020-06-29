@@ -8,8 +8,9 @@ import Dict exposing (Dict)
 import File exposing (File)
 import File.Download as Download
 import File.Select
-import Html exposing (Html, a, button, div, h3, h5, hr, input, label, li, p, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, for, href, id, name, placeholder, style, target, type_, value)
+import Helpers
+import Html exposing (Html, a, button, div, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
+import Html.Attributes exposing (attribute, checked, class, classList, for, href, id, name, placeholder, style, target, type_, value)
 import Html.Events exposing (on, onClick, onInput)
 import Html.Lazy
 import Input
@@ -80,10 +81,17 @@ type UndoStrategy
 
 
 type ModalContent
-    = ViewImportFileRecords (List ColumnHeadingName) (List (List String))
+    = ViewImportFileRecords (List ColumnHeadingName) (List (List String)) ImportStacking
     | ViewMapRecordsToTag (List ColumnHeadingName) (List (List String)) Tag
     | ViewInfo String
     | ViewWarningDeleteLocalData
+    | ViewDropIrregularRecords (List ColumnHeadingName) (List (List String)) (List (List String))
+    | ViewIncompatibleData (List ColumnHeadingName) (List ColumnHeadingName)
+
+
+type ImportStacking
+    = Stack
+    | Replace
 
 
 {-| data of type Bucket can be either a single instance of type `a`,
@@ -109,6 +117,7 @@ type alias Model =
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
     , optionTagging : TaggingOption
     , showModal : Maybe (Modal.State ModalContent)
+    , settingStackImportedData : ImportStacking
     }
 
 
@@ -149,6 +158,9 @@ init flags =
 
         showModal =
             Result.withDefault Nothing <| Decode.decodeValue (Decode.field "showModal" (Decode.nullable (Modal.createStateDecoder modalContentDecoder))) flags
+
+        settingStackImportedData =
+            Result.withDefault Stack <| Decode.decodeValue (Decode.field "settingStackImportedData" (Decode.string |> Decode.andThen decodeImportStacking)) flags
     in
     ( { locale = locale
       , tags = tags
@@ -160,6 +172,7 @@ init flags =
       , batchTaggingOptions = batchTaggingOptions
       , optionTagging = BatchTagging
       , showModal = showModal
+      , settingStackImportedData = settingStackImportedData
       }
     , Cmd.none
     )
@@ -182,7 +195,41 @@ encodeModel model =
         , ( "tableDataTagged", Encode.list (Encode.list encodeTableDataTagged) model.tableDataTagged )
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
         , ( "showModal", encodeShowModal model.showModal )
+        , ( "settingStackImportedData", encodeImportStacking model.settingStackImportedData )
         ]
+
+
+decodeImportStacking : String -> Decode.Decoder ImportStacking
+decodeImportStacking encoded =
+    case parseImportStacking encoded of
+        Ok stackingType ->
+            Decode.succeed stackingType
+
+        Err err ->
+            Decode.fail err
+
+
+parseImportStacking : String -> Result String ImportStacking
+parseImportStacking val =
+    case val of
+        "stack" ->
+            Ok Stack
+
+        "replace" ->
+            Ok Replace
+
+        _ ->
+            Err "Invalid settingStackImportedData encoding"
+
+
+encodeImportStacking : ImportStacking -> Encode.Value
+encodeImportStacking importStacking =
+    case importStacking of
+        Stack ->
+            Encode.string "stack"
+
+        Replace ->
+            Encode.string "replace"
 
 
 encodeShowModal : Maybe (Modal.State ModalContent) -> Encode.Value
@@ -199,9 +246,10 @@ modalContentDecoder : Decode.Decoder ModalContent
 modalContentDecoder =
     Decode.oneOf
         [ Decode.field "viewImportFileRecords"
-            (Decode.map2 ViewImportFileRecords
+            (Decode.map3 ViewImportFileRecords
                 (Decode.field "columns" <| Decode.list Decode.string)
                 (Decode.field "records" <| Decode.list (Decode.list Decode.string))
+                (Decode.field "stacking" <| (Decode.string |> Decode.andThen decodeImportStacking))
             )
         , Decode.field "viewMapRecordsToTag"
             (Decode.map3 ViewMapRecordsToTag
@@ -211,17 +259,29 @@ modalContentDecoder =
             )
         , Decode.field "viewInfo" (Decode.string |> Decode.map ViewInfo)
         , Decode.field "viewWarningDeleteLocalData" (Decode.succeed ViewWarningDeleteLocalData)
+        , Decode.field "viewDropIrregularRecords"
+            (Decode.map3 ViewDropIrregularRecords
+                (Decode.field "columns" <| Decode.list Decode.string)
+                (Decode.field "irregularRecords" <| Decode.list (Decode.list Decode.string))
+                (Decode.field "regularRecords" <| Decode.list (Decode.list Decode.string))
+            )
+        , Decode.field "viewIncompatibleData"
+            (Decode.map2 ViewIncompatibleData
+                (Decode.field "compatibleHeaders" <| Decode.list Decode.string)
+                (Decode.field "incompatibleHeaders" <| Decode.list Decode.string)
+            )
         ]
 
 
 encodeModalContent : ModalContent -> Encode.Value
 encodeModalContent modalContent_ =
     case modalContent_ of
-        ViewImportFileRecords columns records ->
+        ViewImportFileRecords columns records stacking ->
             let
                 valuesEncoding =
                     Encode.object
-                        [ ( "columns", Encode.list Encode.string columns )
+                        [ ( "stacking", encodeImportStacking stacking )
+                        , ( "columns", Encode.list Encode.string columns )
                         , ( "records", Encode.list (Encode.list Encode.string) records )
                         ]
             in
@@ -252,6 +312,31 @@ encodeModalContent modalContent_ =
                 [ ( "viewWarningDeleteLocalData", Encode.null )
                 ]
 
+        ViewDropIrregularRecords columns irregularRecords regularRecords ->
+            let
+                valuesEncoding =
+                    Encode.object
+                        [ ( "columns", Encode.list Encode.string columns )
+                        , ( "regularRecords", Encode.list (Encode.list Encode.string) regularRecords )
+                        , ( "irregularRecords", Encode.list (Encode.list Encode.string) irregularRecords )
+                        ]
+            in
+            Encode.object
+                [ ( "viewDropIrregularRecords", valuesEncoding )
+                ]
+
+        ViewIncompatibleData compatibleHeaders incompatibleHeaders ->
+            let
+                valuesEncoding =
+                    Encode.object
+                        [ ( "compatibleHeaders", Encode.list Encode.string compatibleHeaders )
+                        , ( "incompatibleHeaders", Encode.list Encode.string incompatibleHeaders )
+                        ]
+            in
+            Encode.object
+                [ ( "viewIncompatibleData", valuesEncoding )
+                ]
+
 
 
 -- UPDATE
@@ -278,8 +363,10 @@ type Msg
     | SortTaggedTable Tag ColumnHeadingName
     | UserClickedFileSelectButton
     | UserSelectedFileFromSysDialog File
-    | CmdCompletedFileLoadingTask String
-    | UserClickedImportFileDataButton (List ColumnHeadingName) (List (List String))
+    | RuntimeCompletedFileLoadingTask String
+    | UserClickedStackingCheckboxInImportDialog (List ColumnHeadingName) (List (List String)) ImportStacking
+    | UserClickedImportFileDataButtonInImportDialog ImportStacking (List ColumnHeadingName) (List (List String))
+    | UserClickedDropButtonInDropDialog (List ColumnHeadingName) (List (List String)) (List (List String))
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -297,33 +384,98 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        UserClickedImportFileDataButton headers records ->
-            ( updateCloseModal <| createTableDataFromCsv (Csv.Csv headers records) model, Cmd.none )
+        UserClickedDropButtonInDropDialog headers _ regularRecords ->
+            ( updateShowImportConfirmation headers regularRecords model.settingStackImportedData model, Cmd.none )
 
-        CmdCompletedFileLoadingTask content ->
+        UserClickedStackingCheckboxInImportDialog headers records importStacking ->
+            case importStacking of
+                Stack ->
+                    ( updateShowImportConfirmation headers records Replace model, Cmd.none )
+
+                Replace ->
+                    ( updateShowImportConfirmation headers records Stack model, Cmd.none )
+
+        UserClickedImportFileDataButtonInImportDialog stacking headers records ->
+            ( updateCloseModal <| createTableDataFromCsv stacking (Csv.Csv headers records) model, Cmd.none )
+
+        RuntimeCompletedFileLoadingTask content ->
             let
-                showImportConfirmation csv model_ =
-                    updateShowModal
-                        Modal.RegularView
-                        (translateImportData model_.locale)
-                        (ViewImportFileRecords csv.headers csv.records)
-                        model_
+                commaParsedCsv =
+                    parseCsvString ',' content
+
+                semicolonParsedCsv =
+                    parseCsvString ';' content
+
+                noRecords =
+                    List.length semicolonParsedCsv.records == 0 && List.length commaParsedCsv.records == 0
+
+                workingTableData =
+                    List.head model.tableData
+
+                validHeaders =
+                    List.head model.tableDataTagged |> Maybe.andThen List.head |> Maybe.map .headers
+
+                parsedCsv =
+                    if List.length semicolonParsedCsv.headers > List.length commaParsedCsv.headers then
+                        semicolonParsedCsv
+
+                    else
+                        commaParsedCsv
+
+                ( irregularRecords, regularRecords ) =
+                    partitionIrregularRowsInLength parsedCsv.headers parsedCsv.records
+
+                checkForIrregularityOrProceed =
+                    if List.length irregularRecords > 0 then
+                        updateShowModalInfo
+                            (Locale.translateIrregularRowsTitle model.locale)
+                            (ViewDropIrregularRecords parsedCsv.headers irregularRecords regularRecords)
+                            model
+
+                    else
+                        updateShowImportConfirmation parsedCsv.headers regularRecords model.settingStackImportedData model
+
+                incompatibleDataDialog compatibleHeaders incompatibleHeaders model_ =
+                    updateShowModalInfo (Locale.translateIncompatibleDataTitle model_.locale) (ViewIncompatibleData compatibleHeaders incompatibleHeaders) model_
 
                 newModel =
-                    case parseCsvString ';' content of
-                        Ok csv ->
-                            showImportConfirmation csv model
+                    if String.isEmpty content then
+                        updateShowModalInfo (Locale.translateEmptyFileTitle model.locale) (ViewInfo <| Locale.translateEmptyFileText model.locale) model
 
-                        Err _ ->
-                            case parseCsvString ',' content of
-                                Ok csv ->
-                                    showImportConfirmation csv model
+                    else if noRecords then
+                        updateShowModalInfo
+                            (Locale.translateImportDataNoRecordsFoundTitle model.locale)
+                            (ViewInfo <| Locale.translateImportDataNoRecordsFound model.locale)
+                            model
 
-                                Err _ ->
-                                    updateShowModalInfo
-                                        (Locale.translateErrorHeading model.locale)
-                                        (ViewInfo <| Locale.translateErrorParsingYourFile model.locale)
-                                        model
+                    else
+                        case ( workingTableData, validHeaders ) of
+                            ( Just tableData, Just headers ) ->
+                                if tableData.headers /= parsedCsv.headers then
+                                    incompatibleDataDialog tableData.headers parsedCsv.headers model
+
+                                else if headers /= parsedCsv.headers then
+                                    incompatibleDataDialog headers parsedCsv.headers model
+
+                                else
+                                    checkForIrregularityOrProceed
+
+                            ( Just tableData, Nothing ) ->
+                                if tableData.headers /= parsedCsv.headers then
+                                    incompatibleDataDialog tableData.headers parsedCsv.headers model
+
+                                else
+                                    checkForIrregularityOrProceed
+
+                            ( Nothing, Just headers ) ->
+                                if headers /= parsedCsv.headers then
+                                    incompatibleDataDialog headers parsedCsv.headers model
+
+                                else
+                                    checkForIrregularityOrProceed
+
+                            ( Nothing, Nothing ) ->
+                                checkForIrregularityOrProceed
             in
             ( newModel |> updateResetBatchTaggingOptions
             , Cmd.none
@@ -333,7 +485,7 @@ update msg model =
             ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
 
         UserSelectedFileFromSysDialog file ->
-            ( model, Task.perform CmdCompletedFileLoadingTask (File.toString file) )
+            ( model, Task.perform RuntimeCompletedFileLoadingTask (File.toString file) )
 
         UserClickedRequestDeleteDataButton ->
             ( updateShowModal Modal.RegularView (Locale.translateTitleDeleteLocalData model.locale) ViewWarningDeleteLocalData model
@@ -611,6 +763,15 @@ updateSetLocale locale model =
     { model | locale = locale }
 
 
+updateShowImportConfirmation : List ColumnHeadingName -> List (List String) -> ImportStacking -> Model -> Model
+updateShowImportConfirmation headers records stackSetting model =
+    updateShowModal
+        Modal.RegularView
+        (translateImportData model.locale)
+        (ViewImportFileRecords headers records stackSetting)
+        model
+
+
 updateShowModalInfo : Modal.Title -> ModalContent -> Model -> Model
 updateShowModalInfo title content model =
     { model | showModal = Just (Modal.State content title Modal.RegularView) }
@@ -646,10 +807,10 @@ subscriptions _ =
 -- VIEW
 
 
-viewRecords : List ColumnHeadingName -> List (List String) -> Html.Html Msg
-viewRecords headers records =
+viewRecords : Table.Responsive -> List ColumnHeadingName -> List (List String) -> Html.Html Msg
+viewRecords responsive headers records =
     Table.view
-        Table.Responsive
+        responsive
         (List.map (\column -> ( column, NoOp )) headers)
         (List.map (List.map text) records)
 
@@ -657,19 +818,44 @@ viewRecords headers records =
 viewModalContent : Locale -> ModalContent -> Html.Html Msg
 viewModalContent locale modalContent =
     case modalContent of
-        ViewImportFileRecords headers records ->
+        ViewImportFileRecords headers records stacking ->
             if List.isEmpty records then
                 text <| Locale.translateImportDataNoRecordsFound locale
 
             else
-                viewRecords headers records
+                let
+                    isChecked =
+                        case stacking of
+                            Stack ->
+                                True
+
+                            Replace ->
+                                False
+                in
+                Html.div
+                    [ Html.Attributes.style "position" "relative" ]
+                    [ div [ Html.Attributes.style "position" "fixed", Html.Attributes.style "bottom" "10px" ]
+                        [ Html.label [ onClick (UserClickedStackingCheckboxInImportDialog headers records stacking) ]
+                            [ input [ type_ "checkbox", checked isChecked, class "uk-checkbox" ] []
+                            , text <| " " ++ Locale.translateCheckboxStackData locale
+                            ]
+                        , div
+                            []
+                            [ span
+                                [ class "uk-label uk-label-warning uk-text-small uk-margin-left", style "vertical-align" "text-bottom" ]
+                                [ text <| Locale.translateWarningLabel locale ]
+                            , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateUncheckStackDataWarning locale ]
+                            ]
+                        ]
+                    , viewRecords Table.Responsive headers records
+                    ]
 
         ViewMapRecordsToTag headers plainRecords _ ->
             if List.isEmpty plainRecords then
                 text <| Locale.translateNoMatchingRecordsFound locale
 
             else
-                viewRecords headers plainRecords
+                viewRecords Table.Responsive headers plainRecords
 
         ViewInfo info ->
             text info
@@ -677,17 +863,34 @@ viewModalContent locale modalContent =
         ViewWarningDeleteLocalData ->
             text (Locale.translateWarningDeleteLocalData locale)
 
+        ViewDropIrregularRecords headers irregularRecords _ ->
+            div
+                []
+                [ h4 [] [ text <| Locale.translateIrregularRowsText locale (List.length irregularRecords) ++ " :" ]
+                , viewRecords Table.Unresponsive headers irregularRecords
+                , h4 [] [ text <| Locale.translateAskForDrop locale ]
+                ]
+
+        ViewIncompatibleData validHeaders unvalidHeaders ->
+            div
+                []
+                [ h4 [] [ text <| Locale.translateIncompatibleDataIntro locale ]
+                , viewRecords Table.Unresponsive validHeaders []
+                , h4 [] [ text <| Locale.translateIncompatibleDataComparison locale ]
+                , viewRecords Table.Unresponsive unvalidHeaders []
+                ]
+
 
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
-        ViewImportFileRecords headers records ->
+        ViewImportFileRecords headers records stacking ->
             if List.isEmpty records then
                 [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
             else
-                [ Modal.IconButton Button.Primary (UserClickedImportFileDataButton headers records) (Locale.translateImport locale) Button.Import
+                [ Modal.IconButton Button.Primary (UserClickedImportFileDataButtonInImportDialog stacking headers records) (Locale.translateImport locale) Button.Import
                 , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
@@ -712,6 +915,15 @@ getModalButtons locale modalContent =
         ViewWarningDeleteLocalData ->
             [ Modal.DefaultButton Button.Secondary DeleteLocalData (Locale.translateProceed locale)
             , Modal.DefaultButton Button.Primary CloseModal (Locale.translateCancel locale)
+            ]
+
+        ViewDropIrregularRecords headers irregularRecords regularRecords ->
+            [ Modal.DefaultButton Button.Primary (UserClickedDropButtonInDropDialog headers irregularRecords regularRecords) (Locale.translateDrop locale)
+            , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
+            ]
+
+        ViewIncompatibleData _ _ ->
+            [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
             ]
 
 
@@ -1135,6 +1347,19 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
 -- HELPERS
 
 
+partitionIrregularRowsInLength : List String -> List (List String) -> ( List (List String), List (List String) )
+partitionIrregularRowsInLength headers records =
+    let
+        validLength =
+            List.length headers
+    in
+    List.partition
+        (\record ->
+            List.length record > validLength
+        )
+        records
+
+
 mapRowCellsToHaveColumns : List ColumnHeadingName -> Row -> { cells : List ( ColumnHeadingName, Cell ) }
 mapRowCellsToHaveColumns headers row =
     { cells = List.map2 Tuple.pair headers row.cells }
@@ -1175,20 +1400,29 @@ mapRowToTag aTag aRow aTaggedTable =
         aTaggedTable
 
 
-parseCsvString : Char -> String -> Result (List Parser.DeadEnd) Csv.Csv
+parseCsvString : Char -> String -> Csv.Csv
 parseCsvString separator contents =
     contents
         |> Csv.parseWith separator
 
 
-createTableDataFromCsv : Csv.Csv -> Model -> Model
-createTableDataFromCsv csv model =
+createTableDataFromCsv : ImportStacking -> Csv.Csv -> Model -> Model
+createTableDataFromCsv stacking csv model =
     let
         recordsConvertedToRows =
             List.map (\row -> List.map String.trim row) csv.records
                 |> List.map Row
     in
-    { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
+    case stacking of
+        Stack ->
+            let
+                currentTableData =
+                    Maybe.withDefault (TableData [] []) (List.head model.tableData)
+            in
+            { model | tableData = [ TableData csv.headers <| currentTableData.rows ++ recordsConvertedToRows ] }
+
+        Replace ->
+            { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
 
 
 setCSVSemicolonsInList : List String -> List String
