@@ -2,7 +2,7 @@ module Input exposing (viewAutocomplete, viewDefault, viewRadio, viewRadioGroup,
 
 import Button
 import Html exposing (Attribute, Html, datalist, div, input, label, option, text)
-import Html.Attributes exposing (class, id, list, name, type_, value)
+import Html.Attributes exposing (class, id, list, name, style, type_, value)
 import Html.Events exposing (onClick)
 import Set exposing (Set)
 

@@ -21,13 +21,13 @@ date: '2018-08-29 10:26'
 - [x] Add decoder for previous `TableDataTagged` (without field `dataFormats`) if some user have the old encoding
 - [ ] Support for multiple files
   - ~~Either have tables for each file~~
-  - Or introduce sessions per table type and enforce table headings and data formats to be equal in each session
+  - Or introduce workspace per table type and enforce table headings and data formats to be equal in each workspace
 
 2. **File import**
 - [x] Add possibility to stack all imported data or to replace remaining (per file import)
 - [x] Create file import process documentation
-- [ ] Implement process
-- [ ] Workspace feature
+- [x] Implement process
+- [ ] Update user documentation
 
 
 
@@ -36,3 +36,5 @@ date: '2018-08-29 10:26'
 - [ ] Add tag on enter
 - [ ] Add redo functionality with list of Msg's
 - [ ] Migrate from localstorage to indexedDB
+- [x] Convienence buttons for dataformats (place regex)
+- [ ] Workspace feature

@@ -1,4 +1,4 @@
-module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
+module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), DataFormats, Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
 
 import Dict exposing (Dict)
 import Helpers exposing (isResultOk)
@@ -42,6 +42,10 @@ type alias Row =
     }
 
 
+type alias DataFormats =
+    Dict ColumnHeadingName DataFormat
+
+
 type DataFormat
     = Text
     | Float
@@ -59,7 +63,7 @@ type alias TableDataTagged =
     { tag : Tag
     , headers : List ColumnHeadingName
     , rows : List Row
-    , dataFormats : Dict ColumnHeadingName DataFormat
+    , dataFormats : DataFormats
     }
 
 

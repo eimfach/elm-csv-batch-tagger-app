@@ -1,15 +1,18 @@
-module Button exposing (ActionType(..), Alignment(..), Size(..), Text, Type(..), view)
+module Button exposing (ActionType(..), Alignment(..), Size(..), Text, Type(..), view, viewWithDropDown)
 
-import Html exposing (button, span, text)
-import Html.Attributes exposing (attribute, class, type_)
+import Dict exposing (Dict)
+import Html exposing (button, div, h3, li, span, text, ul)
+import Html.Attributes exposing (attribute, class, classList, type_)
 import Html.Events exposing (onClick)
 import Set
+import StoryBook.SortTable exposing (Msg)
 
 
 type ActionType
     = Add
     | Remove
     | Import
+    | AddRegex
     | NoActionType
 
 
@@ -90,6 +93,9 @@ mapButtonActionType btnActionType =
         NoActionType ->
             []
 
+        AddRegex ->
+            [ attribute "uk-icon" "icon: nut" ]
+
 
 view :
     msg
@@ -103,6 +109,35 @@ view msg btnType btnActionType btnText =
         [ span (mapButtonActionType btnActionType) []
         , span [] [ text <| "  " ++ btnText ]
         ]
+
+
+viewWithDropDown : Type -> ActionType -> Text -> Dict String (List ( String, msg )) -> Html.Html msg
+viewWithDropDown btnType btnActionType btnText dropDownList =
+    div []
+        [ button
+            [ type_ "button", class (mapButtonStyles btnType) ]
+            [ span (mapButtonActionType btnActionType) []
+            ]
+        , div [ class "uk-width-2xlarge", attribute "uk-dropdown" "mode: click; pos: bottom-center" ]
+            [ h3 [] [ text btnText ]
+            , div [ class "uk-dropdown-grid uk-child-width-1-2@m", attribute "uk-grid" "" ] <|
+                viewGridDropdownList dropDownList
+            ]
+        ]
+
+
+viewGridDropdownList : Dict String (List ( String, msg )) -> List (Html.Html msg)
+viewGridDropdownList dropDownList =
+    Dict.map
+        (\title options ->
+            div []
+                [ ul [ class "uk-nav uk-dropdown-nav" ] <|
+                    [ li [ class "uk-nav-header" ] [ text title ] ]
+                        ++ List.map (\( descr, action ) -> li [ onClick action ] [ text descr ]) options
+                ]
+        )
+        dropDownList
+        |> Dict.values
 
 
 createPrefixedClass : Set.Set String -> String

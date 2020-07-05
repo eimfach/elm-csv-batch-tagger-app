@@ -94,6 +94,17 @@ type ImportStacking
     | Replace
 
 
+type Workspace
+    = Workspace (List ColumnHeadingName)
+    | EmptyWorkspace
+
+
+type Regex
+    = IntegerRegex
+    | PeriodFloatRegex
+    | CommaFloatRegex
+
+
 {-| data of type Bucket can be either a single instance of type `a`,
 or a List of type `a`
 -}
@@ -346,6 +357,7 @@ encodeModalContent modalContent_ =
 -}
 type Msg
     = RemoveTag String
+    | UserClickedItemInPlaceRegexDropDownList ColumnHeadingName Regex
     | UserClickedRequestDeleteDataButton
     | DeleteLocalData
     | ToggleLocale
@@ -384,6 +396,21 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UserClickedItemInPlaceRegexDropDownList column regex ->
+            let
+                regexStr =
+                    case regex of
+                        IntegerRegex ->
+                            "^[-+]?\\d+$"
+
+                        PeriodFloatRegex ->
+                            "^[-+]?[0-9]+\\.[0-9]+$"
+
+                        CommaFloatRegex ->
+                            "^[-+]?[0-9]+\\,[0-9]+$"
+            in
+            ( { model | batchTaggingOptions = Dict.insert column regexStr model.batchTaggingOptions }, Cmd.none )
+
         UserClickedDropButtonInDropDialog headers _ regularRecords ->
             ( updateShowImportConfirmation headers regularRecords model.settingStackImportedData model, Cmd.none )
 
@@ -409,12 +436,6 @@ update msg model =
                 noRecords =
                     List.length semicolonParsedCsv.records == 0 && List.length commaParsedCsv.records == 0
 
-                workingTableData =
-                    List.head model.tableData
-
-                validHeaders =
-                    List.head model.tableDataTagged |> Maybe.andThen List.head |> Maybe.map .headers
-
                 parsedCsv =
                     if List.length semicolonParsedCsv.headers > List.length commaParsedCsv.headers then
                         semicolonParsedCsv
@@ -438,6 +459,9 @@ update msg model =
                 incompatibleDataDialog compatibleHeaders incompatibleHeaders model_ =
                     updateShowModalInfo (Locale.translateIncompatibleDataTitle model_.locale) (ViewIncompatibleData compatibleHeaders incompatibleHeaders) model_
 
+                workspace =
+                    getWorkspace model
+
                 newModel =
                     if String.isEmpty content then
                         updateShowModalInfo (Locale.translateEmptyFileTitle model.locale) (ViewInfo <| Locale.translateEmptyFileText model.locale) model
@@ -449,32 +473,15 @@ update msg model =
                             model
 
                     else
-                        case ( workingTableData, validHeaders ) of
-                            ( Just tableData, Just headers ) ->
-                                if tableData.headers /= parsedCsv.headers then
-                                    incompatibleDataDialog tableData.headers parsedCsv.headers model
-
-                                else if headers /= parsedCsv.headers then
-                                    incompatibleDataDialog headers parsedCsv.headers model
+                        case workspace of
+                            Workspace workspaceHeaders ->
+                                if workspaceHeaders /= parsedCsv.headers then
+                                    incompatibleDataDialog workspaceHeaders parsedCsv.headers model
 
                                 else
                                     checkForIrregularityOrProceed
 
-                            ( Just tableData, Nothing ) ->
-                                if tableData.headers /= parsedCsv.headers then
-                                    incompatibleDataDialog tableData.headers parsedCsv.headers model
-
-                                else
-                                    checkForIrregularityOrProceed
-
-                            ( Nothing, Just headers ) ->
-                                if headers /= parsedCsv.headers then
-                                    incompatibleDataDialog headers parsedCsv.headers model
-
-                                else
-                                    checkForIrregularityOrProceed
-
-                            ( Nothing, Nothing ) ->
+                            EmptyWorkspace ->
                                 checkForIrregularityOrProceed
             in
             ( newModel |> updateResetBatchTaggingOptions
@@ -1213,7 +1220,7 @@ viewManualTaggingTab locale columns records =
     div [] content
 
 
-viewBatchTaggingTab : Locale.Locale -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTaggingTab : Locale.Locale -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> Msg) -> List ColumnHeadingName -> List Row -> Html.Html Msg
 viewBatchTaggingTab locale batchTaggingOptions inputAction columns records =
     let
         content =
@@ -1234,7 +1241,7 @@ viewBatchTaggingTab locale batchTaggingOptions inputAction columns records =
     div [] content
 
 
-viewBatchTagging : Locale.Locale -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> msg) -> List ColumnHeadingName -> List Row -> Html.Html msg
+viewBatchTagging : Locale.Locale -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> Msg) -> List ColumnHeadingName -> List Row -> Html.Html Msg
 viewBatchTagging locale batchTaggingOptions inputAction columns records =
     let
         autoTagger =
@@ -1266,14 +1273,24 @@ viewBatchTagging locale batchTaggingOptions inputAction columns records =
             ]
 
 
-viewBatchTaggingInput : String -> Locale.Locale -> String -> String -> Set String -> (SearchPattern -> msg) -> Html.Html msg
+viewBatchTaggingInput : String -> Locale.Locale -> String -> String -> Set String -> (SearchPattern -> Msg) -> Html.Html Msg
 viewBatchTaggingInput labelText locale idVal val options action =
-    Input.viewAutocomplete
-        labelText
-        val
-        idVal
-        [ placeholder (Locale.translateSelectAKeywordOrRegex locale), onInput action ]
-        options
+    div [ class "float-button" ]
+        [ Input.viewAutocomplete
+            labelText
+            val
+            idVal
+            [ placeholder (Locale.translateSelectAKeywordOrRegex locale), onInput action ]
+            options
+        , div [ class "dropdown" ]
+            [ Button.viewWithDropDown
+                Button.Default
+                Button.AddRegex
+                "Place Regex"
+              <|
+                getRegexDropdown labelText
+            ]
+        ]
 
 
 viewTaggingIconNav : ( List a, List a1 ) -> Html Msg
@@ -1345,6 +1362,52 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
 
 
 -- HELPERS
+
+
+getRegexDropdown key =
+    Dict.fromList
+        [ ( "Integers", [ ( "Integer", UserClickedItemInPlaceRegexDropDownList key IntegerRegex ) ] )
+        , ( "Period Floats", [ ( "Period Float", UserClickedItemInPlaceRegexDropDownList key PeriodFloatRegex ) ] )
+        , ( "Comma Floats", [ ( "Comma Float", UserClickedItemInPlaceRegexDropDownList key CommaFloatRegex ) ] )
+        ]
+
+
+getWorkingTaggedData : List (List Table.TableDataTagged) -> Maybe (List Table.TableDataTagged)
+getWorkingTaggedData tableDataTagged =
+    List.head tableDataTagged
+
+
+getFirstTaggedDataItem : Model -> Maybe Table.TableDataTagged
+getFirstTaggedDataItem model =
+    getWorkingTaggedData model.tableDataTagged |> Maybe.andThen List.head
+
+
+getWorkingData : Model -> Maybe Table.TableData
+getWorkingData model =
+    List.head model.tableData
+
+
+getWorkspace : Model -> Workspace
+getWorkspace model =
+    let
+        workingTableDataHeaders =
+            getWorkingData model |> Maybe.map .headers
+
+        taggedTableDataHeaders =
+            getFirstTaggedDataItem model |> Maybe.map .headers
+    in
+    case ( workingTableDataHeaders, taggedTableDataHeaders ) of
+        ( Just headersA, Just _ ) ->
+            Workspace headersA
+
+        ( Just headersA, Nothing ) ->
+            Workspace headersA
+
+        ( Nothing, Just headersB ) ->
+            Workspace <| List.drop 1 headersB
+
+        ( Nothing, Nothing ) ->
+            EmptyWorkspace
 
 
 partitionIrregularRowsInLength : List String -> List (List String) -> ( List (List String), List (List String) )

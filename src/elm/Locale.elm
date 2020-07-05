@@ -535,7 +535,7 @@ translateIncompatibleDataIntro locale =
             "The data you are trying to import is different then the data in your current workspace. Your workspace data is structured like this: "
 
         DE ->
-            "Die Daten die du importieren willst, unterscheiden sich von denen in deinem workspace. Deine workspace Daten sind wie folgt strukturiert: "
+            "Die Daten die du importieren willst, unterscheiden sich von denen in deinem Workspace. Deine Workspace Daten sind wie folgt strukturiert: "
 
 
 translateIncompatibleDataComparison : Locale -> String

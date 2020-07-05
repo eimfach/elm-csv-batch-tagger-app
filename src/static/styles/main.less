@@ -86,3 +86,33 @@ h3 {
 #csv-upload {
   display: none;
 }
+
+.float-button {
+  position: relative;
+
+  .dropdown {
+    width: 450px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+
+    h3 {
+      text-align: center;
+      margin-top: 0;
+    }
+    button {
+      float: right;
+      background-color: white;
+    }
+    li {
+      cursor: pointer;
+    }
+
+    li:hover {
+      color: @global-link-color;
+      transition: color 500ms ease-in-out;
+    }
+  }
+
+
+}
