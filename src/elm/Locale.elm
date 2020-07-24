@@ -1,4 +1,4 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateNoWorkingData, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateTitleRemainingWorkingData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -342,10 +342,10 @@ translateSelectAcsvFile : Translation
 translateSelectAcsvFile locale =
     case locale of
         EN ->
-            "Select a .csv file"
+            "Add a .csv file"
 
         DE ->
-            "Wähle eine .csv Datei aus"
+            ".csv Datei hinzufügen"
 
 
 translateManageYourTags : Translation
@@ -452,7 +452,7 @@ translateUncheckStackDataWarning : Locale -> String
 translateUncheckStackDataWarning locale =
     case locale of
         EN ->
-            "Disabling this means all untagged data will be discarded."
+            "Disabling this will discard all untagged data."
 
         DE ->
             "Deaktivierung wird alle unkategorisierten Daten verwerfen."
@@ -546,3 +546,23 @@ translateIncompatibleDataComparison locale =
 
         DE ->
             "Zum Vergleich, die Daten die du importieren willst, sind wie folgt strukturiert: "
+
+
+translateNoWorkingData : Locale -> String
+translateNoWorkingData locale =
+    case locale of
+        EN ->
+            "No working data ..."
+
+        DE ->
+            "Keine Arbeitsdaten vorhanden ..."
+
+
+translateTitleRemainingWorkingData : Locale -> String
+translateTitleRemainingWorkingData locale =
+    case locale of
+        EN ->
+            "Remaining working data"
+
+        DE ->
+            "Restliche Arbeitsdaten"

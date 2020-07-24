@@ -87,6 +87,7 @@ type ModalContent
     | ViewWarningDeleteLocalData
     | ViewDropIrregularRecords (List ColumnHeadingName) (List (List String)) (List (List String))
     | ViewIncompatibleData (List ColumnHeadingName) (List ColumnHeadingName)
+    | ViewWorkingData (List ColumnHeadingName) (List (List String))
 
 
 type ImportStacking
@@ -256,7 +257,12 @@ encodeShowModal showModal =
 modalContentDecoder : Decode.Decoder ModalContent
 modalContentDecoder =
     Decode.oneOf
-        [ Decode.field "viewImportFileRecords"
+        [ Decode.field "viewUntaggedWorkspaceData"
+            (Decode.map2 ViewWorkingData
+                (Decode.field "columns" <| Decode.list Decode.string)
+                (Decode.field "records" <| Decode.list (Decode.list Decode.string))
+            )
+        , Decode.field "viewImportFileRecords"
             (Decode.map3 ViewImportFileRecords
                 (Decode.field "columns" <| Decode.list Decode.string)
                 (Decode.field "records" <| Decode.list (Decode.list Decode.string))
@@ -287,6 +293,18 @@ modalContentDecoder =
 encodeModalContent : ModalContent -> Encode.Value
 encodeModalContent modalContent_ =
     case modalContent_ of
+        ViewWorkingData columns records ->
+            let
+                valuesEncoding =
+                    Encode.object
+                        [ ( "columns", Encode.list Encode.string columns )
+                        , ( "records", Encode.list (Encode.list Encode.string) records )
+                        ]
+            in
+            Encode.object
+                [ ( "viewUntaggedWorkspaceData", valuesEncoding )
+                ]
+
         ViewImportFileRecords columns records stacking ->
             let
                 valuesEncoding =
@@ -379,6 +397,7 @@ type Msg
     | UserClickedStackingCheckboxInImportDialog (List ColumnHeadingName) (List (List String)) ImportStacking
     | UserClickedImportFileDataButtonInImportDialog ImportStacking (List ColumnHeadingName) (List (List String))
     | UserClickedDropButtonInDropDialog (List ColumnHeadingName) (List (List String)) (List (List String))
+    | UserClickedViewWorkingDataNavButtonInTaggingSection
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -396,6 +415,13 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UserClickedViewWorkingDataNavButtonInTaggingSection ->
+            let
+                { headers, rows } =
+                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model)
+            in
+            ( updateShowModal Modal.RegularView (Locale.translateTitleRemainingWorkingData model.locale) (ViewWorkingData headers (Table.rowPlain rows)) model, Cmd.none )
+
         UserClickedItemInPlaceRegexDropDownList column regex ->
             let
                 regexStr =
@@ -887,10 +913,21 @@ viewModalContent locale modalContent =
                 , viewRecords Table.Unresponsive unvalidHeaders []
                 ]
 
+        ViewWorkingData headers records ->
+            if List.isEmpty records then
+                text <| Locale.translateNoWorkingData locale
+
+            else
+                viewRecords Table.Responsive headers records
+
 
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
+        ViewWorkingData _ _ ->
+            [ Modal.DefaultButton Button.Secondary CloseModal "Ok"
+            ]
+
         ViewImportFileRecords headers records stacking ->
             if List.isEmpty records then
                 [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
@@ -1311,10 +1348,12 @@ viewTaggingIconNav ( history1, history2 ) =
                 ( NavBar.Disabled NavBar.Undo, NoOp, [] )
     in
     NavBar.viewIconNav
-        [ undoButton
-        , ( NavBar.Disabled NavBar.Redo, NoOp, [] )
-        , ( NavBar.Disabled NavBar.Backward, NoOp, [] )
-        , ( NavBar.Disabled NavBar.Forward, NoOp, [] )
+        [ ( NavBar.ViewTableData, UserClickedViewWorkingDataNavButtonInTaggingSection, [] )
+        , undoButton
+
+        -- , ( NavBar.Disabled NavBar.Redo, NoOp, [] )
+        -- , ( NavBar.Disabled NavBar.Backward, NoOp, [] )
+        -- , ( NavBar.Disabled NavBar.Forward, NoOp, [] )
         ]
 
 
