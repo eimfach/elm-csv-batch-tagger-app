@@ -1,4 +1,6 @@
 ---
+
+
 layout: post
 title: PROJECT_ATLANTIC
 date: '2018-08-29 10:26'
@@ -30,8 +32,9 @@ date: '2018-08-29 10:26'
 - [ ] Update user documentation
 
 3. **View all untagged workspace data**
-- [ ] Show nav icon in tagging section
-- [ ] Show dialog with all untagged data after click on nav icon
+- [x] Show nav icon in tagging section
+- [x] Show dialog with all untagged data after click on nav icon
+- [ ] Update user documentation
 
 5. **Automatic assignment**
 
@@ -53,12 +56,17 @@ date: '2018-08-29 10:26'
   - https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
   - https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Basic_Concepts_Behind_IndexedDB
   - https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
-
 - [ ] Separate workspaces by creating an object store for each workspace ?
+
+8. UI/UX Improvments
+
+- [ ] Merge File Select and Tagging Section
+
+9. Integrate `elm-program-test`
 
 ### Backlog
 
 - [ ] Add tag on enter
 - [ ] Add redo functionality with list of Msg's
 - [x] Convienence buttons for dataformats (place regex)
-- [ ] Multiple tags for each data set
+  - [ ] Multiple tags for each data set
