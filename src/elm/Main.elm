@@ -127,9 +127,10 @@ type alias Model =
     , tableData : List TableData
     , tableDataTagged : List (List TableDataTagged)
     , batchTaggingOptions : Dict ColumnHeadingName SearchPattern
-    , optionTagging : TaggingOption
+    , taggingMode : TaggingOption
     , showModal : Maybe (Modal.State ModalContent)
     , settingStackImportedData : ImportStacking
+    , selectedWorkingData : TableData
     }
 
 
@@ -182,9 +183,10 @@ init flags =
       , tableData = tableData
       , tableDataTagged = tableDataTagged
       , batchTaggingOptions = batchTaggingOptions
-      , optionTagging = BatchTagging
+      , taggingMode = BatchTagging
       , showModal = showModal
       , settingStackImportedData = settingStackImportedData
+      , selectedWorkingData = TableData [] []
       }
     , Cmd.none
     )
@@ -384,20 +386,20 @@ type Msg
     | CreateTagFromBuffer
     | MapRecordToTag (Bucket Row) Tag
     | SearchPatternInput ColumnHeadingName SearchPattern
-    | SetTaggingOption TaggingOption
+    | SetTaggingMode TaggingOption
     | NoOp
     | CloseModal
     | UndoMapRecordToTag UndoStrategy
     | TableDownload TableDataTagged
-    | ShowMatchingRecords (List ColumnHeadingName) Tag (List Row)
     | SortTaggedTable Tag ColumnHeadingName
-    | UserClickedFileSelectButton
+    | UserClickedInitialFileSelectButton
     | UserSelectedFileFromSysDialog File
     | RuntimeCompletedFileLoadingTask String
     | UserClickedStackingCheckboxInImportDialog (List ColumnHeadingName) (List (List String)) ImportStacking
-    | UserClickedImportFileDataButtonInImportDialog ImportStacking (List ColumnHeadingName) (List (List String))
+    | UserClickedConfirmDataImportButton ImportStacking (List ColumnHeadingName) (List (List String))
     | UserClickedDropButtonInDropDialog (List ColumnHeadingName) (List (List String)) (List (List String))
     | UserClickedViewWorkingDataNavButtonInTaggingSection
+    | UserClickedImportFileButton
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -415,6 +417,9 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UserClickedImportFileButton ->
+            ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
+
         UserClickedViewWorkingDataNavButtonInTaggingSection ->
             let
                 { headers, rows } =
@@ -448,7 +453,7 @@ update msg model =
                 Replace ->
                     ( updateShowImportConfirmation headers records Stack model, Cmd.none )
 
-        UserClickedImportFileDataButtonInImportDialog stacking headers records ->
+        UserClickedConfirmDataImportButton stacking headers records ->
             ( updateCloseModal <| createTableDataFromCsv stacking (Csv.Csv headers records) model, Cmd.none )
 
         RuntimeCompletedFileLoadingTask content ->
@@ -510,11 +515,11 @@ update msg model =
                             EmptyWorkspace ->
                                 checkForIrregularityOrProceed
             in
-            ( newModel |> updateResetBatchTaggingOptions
+            ( newModel
             , Cmd.none
             )
 
-        UserClickedFileSelectButton ->
+        UserClickedInitialFileSelectButton ->
             ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
 
         UserSelectedFileFromSysDialog file ->
@@ -652,14 +657,30 @@ update msg model =
                     ( updateCloseModal updatedModel, Cmd.none )
 
         SearchPatternInput columnKey searchPatternInput ->
-            if String.isEmpty searchPatternInput then
-                ( { model | batchTaggingOptions = Dict.remove columnKey model.batchTaggingOptions }, Cmd.none )
+            let
+                updatedBatchTaggingOptions =
+                    if String.isEmpty searchPatternInput then
+                        Dict.remove columnKey model.batchTaggingOptions
 
-            else
-                ( { model | batchTaggingOptions = Dict.insert columnKey searchPatternInput model.batchTaggingOptions }, Cmd.none )
+                    else
+                        Dict.insert columnKey searchPatternInput model.batchTaggingOptions
 
-        SetTaggingOption opt ->
-            ( { model | optionTagging = opt }, Cmd.none )
+                headers =
+                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model) |> .headers
+
+                rows =
+                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model) |> .rows
+
+                matchedRows =
+                    matchRows updatedBatchTaggingOptions headers rows
+
+                modelWithUpdatedSelectedWorkingData =
+                    TableData headers matchedRows
+            in
+            ( { model | batchTaggingOptions = updatedBatchTaggingOptions, selectedWorkingData = modelWithUpdatedSelectedWorkingData }, Cmd.none )
+
+        SetTaggingMode opt ->
+            ( { model | taggingMode = opt }, Cmd.none )
 
         CloseModal ->
             ( updateCloseModal model, Cmd.none )
@@ -697,68 +718,6 @@ update msg model =
                     List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
             in
             ( model, Download.string (tag ++ "-" ++ Locale.translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
-
-        ShowMatchingRecords headers tag rows ->
-            let
-                columnSearchPatternCount =
-                    Dict.size model.batchTaggingOptions
-
-                matchedRows =
-                    rows
-                        |> List.map
-                            (mapRowCellsToHaveColumns headers)
-                        |> List.filter
-                            (\row_ ->
-                                let
-                                    matchingCellCount =
-                                        List.foldr
-                                            (\( column, cell ) count ->
-                                                case Dict.get column model.batchTaggingOptions of
-                                                    Just searchPattern ->
-                                                        let
-                                                            regexPattern =
-                                                                Regex.fromStringWith { caseInsensitive = True, multiline = False } searchPattern
-                                                                    |> Maybe.withDefault Regex.never
-                                                        in
-                                                        if Regex.contains regexPattern cell then
-                                                            count + 1
-
-                                                        else
-                                                            count
-
-                                                    Nothing ->
-                                                        count
-                                            )
-                                            0
-                                            row_.cells
-                                in
-                                columnSearchPatternCount > 0 && columnSearchPatternCount == matchingCellCount
-                            )
-
-                matchedRowsAsRowType =
-                    matchedRows
-                        |> List.map mapRowCellsToRemoveColumns
-
-                plainMatchedRecords =
-                    Table.rowPlain matchedRowsAsRowType
-
-                modalTitleText =
-                    Locale.translateRecordsThatWillBeTagged model.locale (List.length plainMatchedRecords)
-
-                modalDisplay =
-                    if List.isEmpty plainMatchedRecords then
-                        Modal.RegularView
-
-                    else
-                        Modal.Fullscreen
-            in
-            ( updateShowModal
-                modalDisplay
-                modalTitleText
-                (ViewMapRecordsToTag headers plainMatchedRecords tag)
-                model
-            , Cmd.none
-            )
 
         SortTaggedTable theTagToLookup column ->
             let
@@ -820,11 +779,6 @@ updateCloseModal model =
     { model | showModal = Nothing }
 
 
-updateResetBatchTaggingOptions : Model -> Model
-updateResetBatchTaggingOptions model =
-    { model | batchTaggingOptions = Dict.empty }
-
-
 
 -- SUBSCRIPTIONS
 
@@ -846,6 +800,11 @@ viewRecords responsive headers records =
         responsive
         (List.map (\column -> ( column, NoOp )) headers)
         (List.map (List.map text) records)
+
+
+viewRows : Table.Responsive -> List ColumnHeadingName -> List Row -> Html.Html Msg
+viewRows responsive headers rows =
+    viewRecords responsive headers <| unwrapRows rows
 
 
 viewModalContent : Locale -> ModalContent -> Html.Html Msg
@@ -934,7 +893,7 @@ getModalButtons locale modalContent =
                 ]
 
             else
-                [ Modal.IconButton Button.Primary (UserClickedImportFileDataButtonInImportDialog stacking headers records) (Locale.translateImport locale) Button.Import
+                [ Modal.IconButton Button.Primary (UserClickedConfirmDataImportButton stacking headers records) (Locale.translateImport locale) Button.Import
                 , Modal.DefaultButton Button.Secondary CloseModal (Locale.translateCancel locale)
                 ]
 
@@ -1021,7 +980,15 @@ view model =
                 , a [ href "https://github.com/eimfach/elm-csv-batch-tagger-app", target "_blank" ] [ text <| " " ++ Locale.translateViewSourceCode model.locale ]
                 ]
             , hr [] []
-            , div [ class "uk-margin-top" ]
+            , div []
+                [ viewTaggingSection
+                    model
+                    tableData.headers
+                    currentRow
+                    tableData.rows
+                    taggingSectionNav
+                ]
+            , div [ class "uk-margin" ]
                 [ button [ class "uk-button uk-button-small uk-align-right", onClick ToggleLocale ]
                     [ text <| Locale.translateLocale model.locale ++ ": " ++ localeTranslation ]
                 , button [ class "uk-button uk-button-small uk-align-right uk-button-danger", onClick UserClickedRequestDeleteDataButton ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
@@ -1029,19 +996,6 @@ view model =
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
-                ]
-            , div []
-                [ viewFileUploadSection (Locale.translateSelectAcsvFile model.locale) ]
-            , div []
-                [ viewTaggingSection
-                    model.locale
-                    model.optionTagging
-                    model.batchTaggingOptions
-                    model.tags
-                    tableData.headers
-                    currentRow
-                    tableData.rows
-                    taggingSectionNav
                 ]
             , div []
                 [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
@@ -1102,37 +1056,28 @@ viewTagButton msg tag =
 viewTagCloud : (Table.Tag -> msg) -> Set Table.Tag -> Html msg
 viewTagCloud action tags =
     p
-        [ class "tag-cloud" ]
-        (viewTagButtons
-            action
-            tags
-        )
+        [ class "uk-flex uk-flex-right" ]
+        [ button [ class "uk-button-default uk-button" ] [ span [ attribute "uk-icon" "icon: database" ] [] ] ]
 
 
 
 -- VIEW SECTIONS
 
 
-viewFileUploadSection : String -> Html Msg
-viewFileUploadSection headerText =
-    div [ class "uk-section uk-section-small" ]
-        [ h3
-            [ class "uk-heading-line uk-text-center" ]
-            [ span [ class "uk-text-background uk-text-large" ] [ text headerText ]
+viewInitialFileSelect : Html Msg
+viewInitialFileSelect =
+    div
+        [ class "uk-padding uk-center uk-flex uk-flex-center" ]
+        [ button
+            [ onClick UserClickedInitialFileSelectButton
+            , class "uk-button uk-button-primary uk-button-large uk-width-1-3"
             ]
-        , div
-            [ class "uk-padding" ]
-            [ button
-                [ onClick UserClickedFileSelectButton
-                , class "file-upload-button uk-button uk-button-default uk-width-1-1 uk-margin"
+            [ label
+                [ attribute "uk-icon" "icon: plus"
+                , for "csv-upload"
+                , class "file-label"
                 ]
-                [ label
-                    [ attribute "uk-icon" "icon: upload"
-                    , for "csv-upload"
-                    , class "file-label"
-                    ]
-                    [ text "" ]
-                ]
+                [ text "" ]
             ]
         ]
 
@@ -1158,28 +1103,28 @@ viewManageTagsSection headerText inputPlaceholder _ buffer tags tagInputMsg crea
         ]
 
 
-viewTaggingSection : Locale -> TaggingOption -> Dict ColumnHeadingName SearchPattern -> Set Tag -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
-viewTaggingSection locale taggingOption batchTaggingOptions tags headers row rows nav =
+viewTaggingSection : Model -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
+viewTaggingSection model headers row rows nav =
     let
         translateHeaderText =
-            Locale.translateApplyTags locale
+            Locale.translateApplyTags model.locale
 
         singleTaggingText =
-            Locale.translateSingleTagging locale
+            Locale.translateSingleTagging model.locale
 
         batchTaggingText =
-            Locale.translateBatchTagging locale
+            Locale.translateBatchTagging model.locale
 
         tagActionText =
-            Locale.translateSelectATagToTag locale
+            Locale.translateSelectATagToTag model.locale
 
         taggingAction tag =
-            case taggingOption of
+            case model.taggingMode of
                 SingleTagging ->
                     MapRecordToTag (Single row) tag
 
                 BatchTagging ->
-                    ShowMatchingRecords headers tag rows
+                    NoOp
 
         ( viewTagActionDescription, viewTagCloud_ ) =
             if List.isEmpty rows then
@@ -1187,68 +1132,56 @@ viewTaggingSection locale taggingOption batchTaggingOptions tags headers row row
 
             else
                 ( div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
-                , viewTagCloud (\tag -> taggingAction tag) tags
+                , viewTagCloud (\tag -> taggingAction tag) model.tags
                 )
 
         ( singleIsActiveTab, viewTab ) =
-            case taggingOption of
+            case model.taggingMode of
                 {--tab selection is naive--}
                 SingleTagging ->
-                    ( True, viewManualTaggingTab locale headers row.cells )
+                    ( True, viewManualTaggingTab model.locale headers row.cells )
 
                 BatchTagging ->
-                    ( False, viewBatchTaggingTab locale batchTaggingOptions SearchPatternInput headers rows )
+                    ( False, viewBatchTaggingTab model SearchPatternInput headers rows )
     in
-    div []
-        [ div [ class "uk-position-relative" ]
-            [ h3
-                [ class "uk-heading-line uk-text-center" ]
-                [ span [ class "uk-text-background uk-text-large" ]
-                    [ text (translateHeaderText (List.length rows))
-                    ]
-                ]
-            , nav
-            ]
+    div [ class "uk-card uk-card-primary uk-card-body uk-width-2xlarge" ]
+        [ nav
         , div [ class "uk-padding" ]
             [ div [ class "uk-width-1-1 uk-margin-large" ]
                 [ ul
                     [ class "uk-child-width-expand", attribute "uk-tab" "" ]
                     [ li
-                        [ onClick (SetTaggingOption SingleTagging)
+                        [ onClick (SetTaggingMode SingleTagging)
                         , classList [ ( "uk-active", singleIsActiveTab ) ]
                         ]
                         [ a [ href "#" ] [ text singleTaggingText ] ]
                     , li
-                        [ onClick (SetTaggingOption BatchTagging)
+                        [ onClick (SetTaggingMode BatchTagging)
                         , classList [ ( "uk-active", not singleIsActiveTab ) ]
                         ]
                         [ a [ href "#" ] [ text batchTaggingText ] ]
                     ]
                 ]
             , viewTab
-            , viewTagActionDescription
             , viewTagCloud_
-            , hr [ class "uk-divider-icon" ] []
             ]
         ]
 
 
-viewManualTaggingTab : Locale.Locale -> List ColumnHeadingName -> List String -> Html.Html msg
+viewEmptyTabContent =
+    [ viewInitialFileSelect
+    ]
+
+
+viewManualTaggingTab : Locale.Locale -> List ColumnHeadingName -> List String -> Html.Html Msg
 viewManualTaggingTab locale columns records =
     let
         content =
             if List.isEmpty records then
-                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
+                viewEmptyTabContent
 
             else
-                [ p
-                    [ class "uk-text-meta" ]
-                    [ span
-                        [ class "uk-label uk-text-small" ]
-                        [ text "NOTE" ]
-                    , text <| "  " ++ Locale.translateHowManualTaggingWorks locale
-                    ]
-                , Table.viewSingle
+                [ Table.viewSingle
                     []
                     columns
                     (List.map text records)
@@ -1257,25 +1190,47 @@ viewManualTaggingTab locale columns records =
     div [] content
 
 
-viewBatchTaggingTab : Locale.Locale -> Dict.Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> Msg) -> List ColumnHeadingName -> List Row -> Html.Html Msg
-viewBatchTaggingTab locale batchTaggingOptions inputAction columns records =
+viewManualTaggingHelp locale =
+    p
+        [ class "uk-text-meta" ]
+        [ span
+            [ class "uk-label uk-text-small" ]
+            [ text "NOTE" ]
+        , text <| "  " ++ Locale.translateHowManualTaggingWorks locale
+        ]
+
+
+viewBatchTaggingTab : Model -> (ColumnHeadingName -> SearchPattern -> Msg) -> List ColumnHeadingName -> List Row -> Html.Html Msg
+viewBatchTaggingTab model inputAction columns records =
     let
-        content =
-            if List.isEmpty records then
-                [ text <| Locale.translateNoRecordsToChooseFromSelectAfile locale ]
+        instantSearchResults =
+            if List.isEmpty model.selectedWorkingData.rows then
+                text ""
 
             else
-                [ p
-                    [ class "uk-text-meta" ]
-                    [ span
-                        [ class "uk-label uk-text-small" ]
-                        [ text "NOTE" ]
-                    , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateHowBatchTaggingWorks locale ]
-                    ]
-                , viewBatchTagging locale batchTaggingOptions inputAction columns records
+                viewRows Table.Unresponsive model.selectedWorkingData.headers model.selectedWorkingData.rows
+
+        content =
+            if List.isEmpty records then
+                viewEmptyTabContent
+
+            else
+                [ viewBatchTagging model.locale model.batchTaggingOptions inputAction columns records
+                , hr [] []
+                , instantSearchResults
                 ]
     in
     div [] content
+
+
+viewBatchTaggingHelp locale =
+    p
+        [ class "uk-text-meta" ]
+        [ span
+            [ class "uk-label uk-text-small" ]
+            [ text "NOTE" ]
+        , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateHowBatchTaggingWorks locale ]
+        ]
 
 
 viewBatchTagging : Locale.Locale -> Dict ColumnHeadingName SearchPattern -> (ColumnHeadingName -> SearchPattern -> Msg) -> List ColumnHeadingName -> List Row -> Html.Html Msg
@@ -1315,6 +1270,7 @@ viewBatchTaggingInput labelText locale idVal val options action =
     div [ class "float-button" ]
         [ Input.viewAutocomplete
             labelText
+            "search"
             val
             idVal
             [ placeholder (Locale.translateSelectAKeywordOrRegex locale), onInput action ]
@@ -1348,7 +1304,13 @@ viewTaggingIconNav ( history1, history2 ) =
                 ( NavBar.Disabled NavBar.Undo, NoOp, [] )
     in
     NavBar.viewIconNav
-        [ ( NavBar.ViewTableData, UserClickedViewWorkingDataNavButtonInTaggingSection, [] )
+        [ ( NavBar.Import, UserClickedImportFileButton, [] )
+        , ( NavBar.Spacer, NoOp, [] )
+        , ( NavBar.ViewTableData, UserClickedViewWorkingDataNavButtonInTaggingSection, [] )
+        , ( NavBar.ViewTaggedData, NoOp, [] )
+        , ( NavBar.Spacer, NoOp, [] )
+        , ( NavBar.ViewManageTags, NoOp, [] )
+        , ( NavBar.Spacer, NoOp, [] )
         , undoButton
 
         -- , ( NavBar.Disabled NavBar.Redo, NoOp, [] )
@@ -1401,6 +1363,46 @@ viewMappedRecordsPanel tagTranslation taggedRecordsText headers_ someTables =
 
 
 -- HELPERS
+
+
+matchRows : Dict String String -> List String -> List Row -> List Row
+matchRows batchTaggingOptions headers rows =
+    rows
+        |> List.map
+            (mapRowCellsToHaveColumns headers)
+        |> List.filter
+            (\row_ ->
+                let
+                    matchingCellCount =
+                        List.foldr
+                            (\( column, cell ) count ->
+                                case Dict.get column batchTaggingOptions of
+                                    Just searchPattern ->
+                                        let
+                                            regexPattern =
+                                                Regex.fromStringWith { caseInsensitive = True, multiline = False } searchPattern
+                                                    |> Maybe.withDefault Regex.never
+                                        in
+                                        if Regex.contains regexPattern cell then
+                                            count + 1
+
+                                        else
+                                            count
+
+                                    Nothing ->
+                                        count
+                            )
+                            0
+                            row_.cells
+                in
+                Dict.size batchTaggingOptions > 0 && Dict.size batchTaggingOptions == matchingCellCount
+            )
+        |> List.map mapRowCellsToRemoveColumns
+
+
+unwrapRows : List Table.Row -> List (List String)
+unwrapRows records =
+    List.map .cells records
 
 
 getRegexDropdown key =
@@ -1520,11 +1522,22 @@ createTableDataFromCsv stacking csv model =
             let
                 currentTableData =
                     Maybe.withDefault (TableData [] []) (List.head model.tableData)
+
+                updatedTableData =
+                    TableData csv.headers <| currentTableData.rows ++ recordsConvertedToRows
+
+                updatedSelectedWorkingData =
+                    matchRows model.batchTaggingOptions updatedTableData.headers updatedTableData.rows
+                        |> TableData updatedTableData.headers
             in
-            { model | tableData = [ TableData csv.headers <| currentTableData.rows ++ recordsConvertedToRows ] }
+            { model | tableData = [ updatedTableData ], selectedWorkingData = updatedSelectedWorkingData }
 
         Replace ->
-            { model | tableData = [ TableData csv.headers recordsConvertedToRows ] }
+            let
+                newTableData =
+                    TableData csv.headers recordsConvertedToRows
+            in
+            { model | tableData = [ newTableData ], selectedWorkingData = newTableData }
 
 
 setCSVSemicolonsInList : List String -> List String

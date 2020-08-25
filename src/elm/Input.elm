@@ -1,23 +1,24 @@
 module Input exposing (viewAutocomplete, viewDefault, viewRadio, viewRadioGroup, viewWithButton)
 
 import Button
-import Html exposing (Attribute, Html, datalist, div, input, label, option, text)
-import Html.Attributes exposing (class, id, list, name, style, type_, value)
+import Html exposing (Attribute, Html, datalist, div, input, label, option, span, text)
+import Html.Attributes exposing (attribute, class, id, list, name, style, type_, value)
 import Html.Events exposing (onClick)
 import Set exposing (Set)
 
 
 view : List (Html msg) -> Html msg
 view childs =
-    div [ class "uk-form-controls" ]
+    div [ class "uk-inline uk-width-expand" ]
         childs
 
 
-viewDefault : String -> List (Attribute msg) -> Html msg
-viewDefault val inputAttr =
+viewDefault : String -> String -> List (Attribute msg) -> Html msg
+viewDefault icon val inputAttr =
     view
-        [ input
-            ([ class "uk-input", type_ "text", value val ]
+        [ span [ class "uk-form-icon", attribute "uk-icon" "icon: search" ] []
+        , input
+            ([ class "uk-input ", type_ "text", value val ]
                 ++ inputAttr
             )
             []
@@ -66,17 +67,19 @@ viewRadioGroup groupName msg radioLabels =
     List.map (viewRadio msg groupName) radioLabels
 
 
-viewAutocomplete : String -> String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
-viewAutocomplete labelText val idVal inputAttr options =
-    div [ class "uk-form-horizontal" ]
-        [ div [ class "uk-margin" ]
-            [ label [ class "uk-form-label" ] [ text labelText ]
-            , viewDefault val
+viewAutocomplete : String -> String -> String -> String -> List (Html.Attribute msg) -> Set String -> Html msg
+viewAutocomplete labelText icon val idVal inputAttr options =
+    div [ class "uk-form-horizontal uk-margin uk-grid" ]
+        [ div [ class "uk-width-2-6 uk-width-1-6@m" ] [ label [ class "uk-form-label" ] [ text labelText ] ]
+        , div [ class "uk-width-4-6 uk-width-5-6@m" ]
+            [ viewDefault
+                icon
+                val
                 (inputAttr
                     ++ [ list idVal ]
                 )
-            , viewDataList idVal options
             ]
+        , viewDataList idVal options
         ]
 
 

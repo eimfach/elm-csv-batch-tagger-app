@@ -1,7 +1,7 @@
 module NavBar exposing (NavItem(..), viewIconNav)
 
 import Html exposing (button, div, li, ul)
-import Html.Attributes exposing (attribute, class)
+import Html.Attributes exposing (attribute, class, style)
 import Html.Events exposing (onClick)
 
 
@@ -15,7 +15,11 @@ type NavItem
     | Forward
     | Backward
     | Export
+    | Import
     | ViewTableData
+    | ViewManageTags
+    | ViewTaggedData
+    | Spacer
     | Disabled NavItem
 
 
@@ -30,6 +34,15 @@ viewIconNavItem attr msg =
 mapActionToElement : ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
 mapActionToElement ( action, msg, attr ) =
     case action of
+        Spacer ->
+            viewIconNavItem [ style "border-left" "1px solid #efefef", style "height" "26px" ] msg
+
+        ViewTaggedData ->
+            viewIconNavItem (attribute "uk-icon" "icon: database" :: attr) msg
+
+        ViewManageTags ->
+            viewIconNavItem (attribute "uk-icon" "icon: tag" :: attr) msg
+
         Undo ->
             viewIconNavItem (attribute "uk-icon" "icon: reply" :: attr) msg
 
@@ -45,6 +58,9 @@ mapActionToElement ( action, msg, attr ) =
         Export ->
             viewIconNavItem (attribute "uk-icon" "icon: download" :: attr) msg
 
+        Import ->
+            viewIconNavItem (attribute "uk-icon" "icon: plus" :: attr) msg
+
         ViewTableData ->
             viewIconNavItem (attribute "uk-icon" "icon: table" :: attr) msg
 
@@ -55,7 +71,7 @@ mapActionToElement ( action, msg, attr ) =
 viewIconNav : List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
 viewIconNav buttonList =
     div
-        [ class "uk-position-top-right icon-nav" ]
+        [ class "uk-flex uk-flex-right uk-padding uk-padding-remove-top uk-padding-remove-bottom" ]
         [ ul [ class "uk-iconnav" ]
             (List.map
                 mapActionToElement

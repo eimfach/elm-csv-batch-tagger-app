@@ -60,7 +60,9 @@ date: '2018-08-29 10:26'
 
 8. UI/UX Improvments
 
-- [ ] Merge File Select and Tagging Section
+- [x] Merge File Select and Tagging Section
+- [ ] Instant Search for Batch Tagging
+- [ ] Move 'Manage Tags' and 'Tagged Records' Sections into Tagging Section accessible via NavBar Icon
 
 9. Integrate `elm-program-test`
 
