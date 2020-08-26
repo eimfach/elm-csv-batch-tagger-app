@@ -858,18 +858,57 @@ viewModalContent locale modalContent =
         ViewDropIrregularRecords headers irregularRecords _ ->
             div
                 []
-                [ h4 [] [ text <| Locale.translateIrregularRowsText locale (List.length irregularRecords) ++ " :" ]
+                [ h5 [] [ text <| Locale.translateIrregularRowsText locale (List.length irregularRecords) ++ " :" ]
                 , viewRecords Table.Unresponsive headers irregularRecords
-                , h4 [] [ text <| Locale.translateAskForDrop locale ]
+                , h5 [] [ text <| Locale.translateAskForDrop locale ]
                 ]
 
         ViewIncompatibleData validHeaders unvalidHeaders ->
+            let
+                validHeadersWithSemicolons =
+                    setCSVSemicolonsInList validHeaders
+
+                unValidHeadersWithSemicolons =
+                    setCSVSemicolonsInList unvalidHeaders
+
+                viewColumns textClass headerText =
+                    String.toList headerText
+                        |> List.foldl
+                            (\char result ->
+                                if char == ' ' then
+                                    List.append result [ span [ style "borderBottom" "1px dotted blue" ] [ text "   " ] ]
+
+                                else
+                                    List.append result [ span [ class textClass ] [ text <| String.fromChar char ] ]
+                            )
+                            []
+            in
             div
                 []
-                [ h4 [] [ text <| Locale.translateIncompatibleDataIntro locale ]
-                , viewRecords Table.Unresponsive validHeaders []
-                , h4 [] [ text <| Locale.translateIncompatibleDataComparison locale ]
-                , viewRecords Table.Unresponsive unvalidHeaders []
+                [ h5 [] [ text <| Locale.translateIncompatibleDataIntro locale ]
+                , div [ style "whiteSpace" "pre" ]
+                    (validHeadersWithSemicolons
+                        |> List.map (viewColumns "uk-text-success")
+                        |> List.concat
+                    )
+                , h5 [] [ text <| Locale.translateIncompatibleDataComparison locale ]
+                , div [ style "whiteSpace" "pre" ]
+                    (unValidHeadersWithSemicolons
+                        |> List.indexedMap
+                            (\i header ->
+                                case ListExtra.getAt i validHeadersWithSemicolons of
+                                    Just validHeader ->
+                                        if validHeader == header then
+                                            viewColumns "uk-text-success" header
+
+                                        else
+                                            viewColumns "uk-text-danger" header
+
+                                    Nothing ->
+                                        viewColumns "uk-text-danger" header
+                            )
+                        |> List.concat
+                    )
                 ]
 
         ViewWorkingData headers records ->
