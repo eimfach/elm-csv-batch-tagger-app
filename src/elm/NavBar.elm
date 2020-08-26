@@ -1,7 +1,7 @@
 module NavBar exposing (NavItem(..), viewIconNav)
 
-import Html exposing (button, div, li, ul)
-import Html.Attributes exposing (attribute, class, style)
+import Html exposing (button, div, li, span, text, ul)
+import Html.Attributes exposing (attribute, class, classList, style)
 import Html.Events exposing (onClick)
 
 
@@ -18,10 +18,13 @@ type NavItem
     | Import
     | ViewTableData
     | ViewManageTags
+    | TagData
     | ViewTaggedData
     | Delete
     | Language
+    | Workspace
     | Spacer
+    | CountBadge Int
     | Disabled NavItem
 
 
@@ -36,14 +39,23 @@ viewIconNavItem tooltip attr msg =
 mapActionToElement : ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
 mapActionToElement ( action, msg, attr ) =
     case action of
+        CountBadge val ->
+            span [ class "uk-badge uk-padding-small" ] [ text <| String.fromInt val ++ " Results" ]
+
         Spacer ->
             viewIconNavItem "" [ style "border-left" "1px solid #efefef", style "height" "26px" ] msg
+
+        Workspace ->
+            viewIconNavItem "Switch Workspace" (attribute "uk-icon" "icon: folder" :: attr) msg
+
+        TagData ->
+            viewIconNavItem "Tag this Data" (attribute "uk-icon" "icon: tag" :: attr) msg
 
         Language ->
             viewIconNavItem "Toggle Language" (attribute "uk-icon" "icon: world" :: attr) msg
 
         Delete ->
-            viewIconNavItem "Delete User Data" (attribute "uk-icon" "icon: trash" :: attr) msg
+            viewIconNavItem "Delete Workspace" (attribute "uk-icon" "icon: trash" :: attr) msg
 
         ViewTaggedData ->
             viewIconNavItem "View Tagged Data" (attribute "uk-icon" "icon: database" :: attr) msg
@@ -76,10 +88,10 @@ mapActionToElement ( action, msg, attr ) =
             mapActionToElement ( action_, msg, [ class "ui-disabled uk-disabled" ] )
 
 
-viewIconNav : List ( NavItem, msg, List (Html.Attribute msg) ) -> List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
-viewIconNav destructiveButtons constructiveButtons =
+viewIconNav : Bool -> List ( NavItem, msg, List (Html.Attribute msg) ) -> List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
+viewIconNav activePadding destructiveButtons constructiveButtons =
     div
-        [ class "uk-flex uk-flex-between uk-padding uk-padding-remove-top uk-padding-remove-bottom" ]
+        [ classList [ ( "uk-padding", activePadding ) ], class "uk-background-primary uk-flex uk-flex-between uk-padding-remove-top uk-padding-remove-bottom" ]
         [ ul [ class "uk-iconnav" ]
             (List.map
                 mapActionToElement

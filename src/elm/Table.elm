@@ -1,4 +1,4 @@
-module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), DataFormats, Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
+module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), DataFormats, Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, decodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
 
 import Dict exposing (Dict)
 import Helpers exposing (isResultOk)
@@ -434,7 +434,7 @@ viewWithTagData responsive exportAction { tag, headers, rows } =
                     [ class "uk-text-large" ]
                     [ text tag ]
                 ]
-            , NavBar.viewIconNav [] [ ( NavBar.Export, exportAction, [] ) ]
+            , NavBar.viewIconNav False [] [ ( NavBar.Export, exportAction, [] ) ]
             ]
         , view
             responsive

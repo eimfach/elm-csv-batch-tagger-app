@@ -23,7 +23,7 @@ import NavBar
 import Parser
 import Regex
 import Set exposing (Set)
-import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
+import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableData, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
 import Task
 
 
@@ -176,6 +176,9 @@ init flags =
 
         settingStackImportedData =
             Result.withDefault Stack <| Decode.decodeValue (Decode.field "settingStackImportedData" (Decode.string |> Decode.andThen decodeImportStacking)) flags
+
+        selectedWorkingData =
+            Result.withDefault (TableData [] []) <| Decode.decodeValue (Decode.field "selectedWorkingData" decodeTableData) flags
     in
     ( { locale = locale
       , tags = tags
@@ -188,7 +191,7 @@ init flags =
       , taggingMode = BatchTagging
       , showModal = showModal
       , settingStackImportedData = settingStackImportedData
-      , selectedWorkingData = TableData [] []
+      , selectedWorkingData = selectedWorkingData
       }
     , Cmd.none
     )
@@ -212,6 +215,7 @@ encodeModel model =
         , ( "batchTaggingOptions", Encode.dict identity Encode.string model.batchTaggingOptions )
         , ( "showModal", encodeShowModal model.showModal )
         , ( "settingStackImportedData", encodeImportStacking model.settingStackImportedData )
+        , ( "selectedWorkingData", encodeTableData model.selectedWorkingData )
         ]
 
 
@@ -434,7 +438,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UserClickedViewTaggedDataButton ->
-            ( updateShowModal Modal.RegularView (Locale.translateTaggedRecords model.locale) ViewTaggedData model, Cmd.none )
+            ( updateShowModal Modal.Fullscreen (Locale.translateTaggedRecords model.locale) ViewTaggedData model, Cmd.none )
 
         UserClickedManageTagsButton ->
             ( updateShowModal Modal.RegularView (Locale.translateManageYourTags model.locale) ViewManageTags model, Cmd.none )
@@ -447,7 +451,7 @@ update msg model =
                 { headers, rows } =
                     Maybe.withDefault (Table.TableData [] []) (getWorkingData model)
             in
-            ( updateShowModal Modal.RegularView (Locale.translateTitleRemainingWorkingData model.locale) (ViewWorkingData headers (Table.rowPlain rows)) model, Cmd.none )
+            ( updateShowModal Modal.Fullscreen (Locale.translateTitleRemainingWorkingData model.locale) (ViewWorkingData headers (Table.rowPlain rows)) model, Cmd.none )
 
         UserClickedItemInPlaceRegexDropDownList column regex ->
             let
@@ -501,7 +505,8 @@ update msg model =
 
                 checkForIrregularityOrProceed =
                     if List.length irregularRecords > 0 then
-                        updateShowModalInfo
+                        updateShowModal
+                            Modal.Fullscreen
                             (Locale.translateIrregularRowsTitle model.locale)
                             (ViewDropIrregularRecords parsedCsv.headers irregularRecords regularRecords)
                             model
@@ -787,7 +792,7 @@ updateSetLocale locale model =
 updateShowImportConfirmation : List ColumnHeadingName -> List (List String) -> ImportStacking -> Model -> Model
 updateShowImportConfirmation headers records stackSetting model =
     updateShowModal
-        Modal.RegularView
+        Modal.Fullscreen
         (translateImportData model.locale)
         (ViewImportFileRecords headers records stackSetting)
         model
@@ -839,6 +844,24 @@ viewRows responsive headers rows =
 viewModalContent : Locale -> Model -> ModalContent -> Html.Html Msg
 viewModalContent locale model modalContent =
     case modalContent of
+        ViewWorkingData headers records ->
+            if List.isEmpty records then
+                text <| Locale.translateNoWorkingData locale
+
+            else
+                viewRecords Table.Responsive headers records
+
+        ViewManageTags ->
+            div []
+                [ Input.viewWithButton
+                    [ onInput TagInput, value model.addTagInputBuffer, placeholder (Locale.translateEnterATag model.locale) ]
+                    Button.Add
+                    CreateTagFromBuffer
+                , viewTagList
+                    (\tag -> RemoveTag tag)
+                    model.tags
+                ]
+
         ViewTaggedData ->
             let
                 someTables =
@@ -980,24 +1003,6 @@ viewModalContent locale model modalContent =
                     )
                 ]
 
-        ViewWorkingData headers records ->
-            if List.isEmpty records then
-                text <| Locale.translateNoWorkingData locale
-
-            else
-                viewRecords Table.Responsive headers records
-
-        ViewManageTags ->
-            div [ class "uk-padding" ]
-                [ Input.viewWithButton
-                    [ onInput TagInput, value model.addTagInputBuffer, placeholder (Locale.translateEnterATag model.locale) ]
-                    Button.Add
-                    CreateTagFromBuffer
-                , viewTagList
-                    (\tag -> RemoveTag tag)
-                    model.tags
-                ]
-
 
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
@@ -1043,8 +1048,8 @@ getModalButtons locale modalContent =
             ]
 
         ViewWarningDeleteLocalData ->
-            [ Modal.DefaultButton Button.Secondary DeleteLocalData (Locale.translateProceed locale)
-            , Modal.DefaultButton Button.Primary CloseModal (Locale.translateCancel locale)
+            [ Modal.DefaultButton Button.Danger DeleteLocalData (Locale.translateProceed locale)
+            , Modal.DefaultButton Button.Default CloseModal (Locale.translateCancel locale)
             ]
 
         ViewDropIrregularRecords headers irregularRecords regularRecords ->
@@ -1070,7 +1075,7 @@ view model =
             Maybe.withDefault (Row []) (List.head tableData.rows)
 
         taggingSectionNav =
-            viewTaggingIconNav ( model.tableData, model.tableDataTagged )
+            viewMainNav ( model.tableData, model.tableDataTagged )
 
         modal =
             case model.showModal of
@@ -1122,12 +1127,6 @@ view model =
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
                 ]
             ]
-        , div
-            [ class "row" ]
-            [ div [ class "col-lg-12 col-sm-12" ]
-                [ viewMappedRecordsPanel (Locale.translateTag model.locale) (Locale.translateTaggedRecords model.locale) tableData.headers tableDataTagged
-                ]
-            ]
         ]
 
 
@@ -1172,13 +1171,6 @@ viewTagButton msg tag =
         (Button.Composed Button.Primary Button.Medium Button.NoAlign)
         Button.NoActionType
         tag
-
-
-viewTagCloud : (Table.Tag -> msg) -> Set Table.Tag -> Html msg
-viewTagCloud action tags =
-    p
-        [ class "uk-flex uk-flex-right" ]
-        [ button [ class "uk-button-default uk-button" ] [ span [ attribute "uk-icon" "icon: database" ] [] ] ]
 
 
 
@@ -1227,34 +1219,8 @@ viewManageTagsSection headerText inputPlaceholder _ buffer tags tagInputMsg crea
 viewTaggingSection : Model -> List ColumnHeadingName -> Row -> List Row -> HtmlNode -> HtmlNode
 viewTaggingSection model headers row rows nav =
     let
-        translateHeaderText =
-            Locale.translateApplyTags model.locale
-
-        singleTaggingText =
-            Locale.translateSingleTagging model.locale
-
         batchTaggingText =
             Locale.translateBatchTagging model.locale
-
-        tagActionText =
-            Locale.translateSelectATagToTag model.locale
-
-        taggingAction tag =
-            case model.taggingMode of
-                SingleTagging ->
-                    MapRecordToTag (Single row) tag
-
-                BatchTagging ->
-                    NoOp
-
-        ( viewTagActionDescription, viewTagCloud_ ) =
-            if List.isEmpty rows then
-                ( text "", text "" )
-
-            else
-                ( div [ class "uk-margin" ] [ h5 [ class "uk-text-primary" ] [ text tagActionText ] ]
-                , viewTagCloud (\tag -> taggingAction tag) model.tags
-                )
 
         ( singleIsActiveTab, viewTab ) =
             case model.taggingMode of
@@ -1272,11 +1238,6 @@ viewTaggingSection model headers row rows nav =
                 [ ul
                     [ class "uk-child-width-expand", attribute "uk-tab" "" ]
                     [ li
-                        [ onClick (SetTaggingMode SingleTagging)
-                        , classList [ ( "uk-active", singleIsActiveTab ) ]
-                        ]
-                        [ a [ href "#" ] [ text singleTaggingText ] ]
-                    , li
                         [ onClick (SetTaggingMode BatchTagging)
                         , classList [ ( "uk-active", not singleIsActiveTab ) ]
                         ]
@@ -1284,7 +1245,6 @@ viewTaggingSection model headers row rows nav =
                     ]
                 ]
             , viewTab
-            , viewTagCloud_
             ]
         ]
 
@@ -1326,10 +1286,23 @@ viewBatchTaggingTab model inputAction columns records =
     let
         instantSearchResults =
             if List.isEmpty model.selectedWorkingData.rows then
-                text ""
+                div [ class "uk-flex uk-flex-center uk-flex-middle uk-padding uk-animation-shake" ]
+                    [ div [ class "" ]
+                        [ span [ class "uk-text-warning", attribute "uk-icon" "icon: search; ratio: 2" ] []
+                        , span [ class "uk-text-middle uk-text-italic uk-text-warning" ] [ text "Couldn't find anything ..." ]
+                        ]
+                    ]
 
             else
-                viewRows Table.Unresponsive model.selectedWorkingData.headers model.selectedWorkingData.rows
+                div []
+                    [ NavBar.viewIconNav False
+                        []
+                        [ ( NavBar.CountBadge <| List.length model.selectedWorkingData.rows, NoOp, [] )
+                        , ( NavBar.Export, NoOp, [] )
+                        , ( NavBar.TagData, NoOp, [] )
+                        ]
+                    , viewRows Table.Unresponsive model.selectedWorkingData.headers model.selectedWorkingData.rows
+                    ]
 
         content =
             if List.isEmpty records then
@@ -1407,8 +1380,8 @@ viewBatchTaggingInput labelText locale idVal val options action =
         ]
 
 
-viewTaggingIconNav : ( List a, List a1 ) -> Html Msg
-viewTaggingIconNav ( history1, history2 ) =
+viewMainNav : ( List a, List a1 ) -> Html Msg
+viewMainNav ( history1, history2 ) =
     {--naive, consider tuple in model & origin data as own field in model--}
     let
         ( history1Length, history2Length ) =
@@ -1425,9 +1398,12 @@ viewTaggingIconNav ( history1, history2 ) =
                 ( NavBar.Disabled NavBar.Undo, NoOp, [] )
     in
     NavBar.viewIconNav
-        [ undoButton
-        , ( NavBar.Delete, UserClickedRequestDeleteDataButton, [] )
+        True
+        [ ( NavBar.Delete, UserClickedRequestDeleteDataButton, [] )
         , ( NavBar.Language, UserClickedToggleLocale, [] )
+        , ( NavBar.Spacer, NoOp, [] )
+        , undoButton
+        , ( NavBar.Disabled NavBar.Workspace, NoOp, [] )
 
         -- , ( NavBar.Disabled NavBar.Redo, NoOp, [] )
         -- , ( NavBar.Disabled NavBar.Backward, NoOp, [] )
@@ -1650,8 +1626,12 @@ createTableDataFromCsv stacking csv model =
                     TableData csv.headers <| currentTableData.rows ++ recordsConvertedToRows
 
                 updatedSelectedWorkingData =
-                    matchRows model.batchTaggingOptions updatedTableData.headers updatedTableData.rows
-                        |> TableData updatedTableData.headers
+                    if Dict.isEmpty model.batchTaggingOptions then
+                        updatedTableData
+
+                    else
+                        matchRows model.batchTaggingOptions updatedTableData.headers updatedTableData.rows
+                            |> TableData updatedTableData.headers
             in
             { model | tableData = [ updatedTableData ], selectedWorkingData = updatedSelectedWorkingData }
 

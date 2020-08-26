@@ -32,6 +32,7 @@ type Type
     = Primary
     | Secondary
     | Default
+    | Danger
     | Composed Type Size Alignment
 
 
@@ -42,11 +43,14 @@ type alias Text =
 mapButtonStyles : Type -> String
 mapButtonStyles btnType =
     case btnType of
+        Danger ->
+            createPrefixedClass (Set.fromList [ "button", "button-danger" ])
+
         Primary ->
             createPrefixedClass (Set.fromList [ "button", "button-primary" ])
 
         Secondary ->
-            createPrefixedClass (Set.fromList [ "button", "button-secondary" ])
+            createPrefixedClass (Set.fromList [ "button", "button-default" ])
 
         Default ->
             createPrefixedClass (Set.fromList [ "button", "button-default" ])

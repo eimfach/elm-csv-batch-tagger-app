@@ -34,6 +34,11 @@ type DisplayProperties
     | Fullscreen
 
 
+type Heading msg
+    = Plain String
+    | Element (Html msg)
+
+
 encodeState : State content -> (content -> Encode.Value) -> Encode.Value
 encodeState state contentEncoder =
     Encode.object
@@ -108,9 +113,9 @@ view displayProperties closeMsg heading content buttons =
                     [ ( "uk-modal-full", False ) ]
 
                 Fullscreen ->
-                    [ ( "uk-modal-full", True ) ]
+                    [ ( "uk-modal-full", False ), ( "uk-modal-container", True ) ]
     in
-    div [ class "uk-modal", class "uk-modal-container uk-open", classList displayPropertyClasses, style "display" "block" ]
+    div [ class "uk-modal", class "uk-open", classList displayPropertyClasses, style "display" "block" ]
         [ div [ class "uk-modal-dialog uk-animation-slide-top" ]
             [ button [ class "uk-modal-close-full uk-close-large", type_ "button", attribute "uk-close" "", onClick closeMsg ]
                 []
