@@ -111,7 +111,7 @@ view displayProperties closeMsg heading content buttons =
                     [ ( "uk-modal-full", True ) ]
     in
     div [ class "uk-modal", class "uk-modal-container uk-open", classList displayPropertyClasses, style "display" "block" ]
-        [ div [ class "uk-modal-dialog" ]
+        [ div [ class "uk-modal-dialog uk-animation-slide-top" ]
             [ button [ class "uk-modal-close-full uk-close-large", type_ "button", attribute "uk-close" "", onClick closeMsg ]
                 []
             , div [ class "uk-modal-header" ]

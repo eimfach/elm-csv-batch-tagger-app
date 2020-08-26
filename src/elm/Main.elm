@@ -88,6 +88,8 @@ type ModalContent
     | ViewDropIrregularRecords (List ColumnHeadingName) (List (List String)) (List (List String))
     | ViewIncompatibleData (List ColumnHeadingName) (List ColumnHeadingName)
     | ViewWorkingData (List ColumnHeadingName) (List (List String))
+    | ViewManageTags
+    | ViewTaggedData
 
 
 type ImportStacking
@@ -259,7 +261,9 @@ encodeShowModal showModal =
 modalContentDecoder : Decode.Decoder ModalContent
 modalContentDecoder =
     Decode.oneOf
-        [ Decode.field "viewUntaggedWorkspaceData"
+        [ Decode.field "viewTaggedData" (Decode.succeed ViewTaggedData)
+        , Decode.field "viewManageTags" (Decode.succeed ViewManageTags)
+        , Decode.field "viewWorkingData"
             (Decode.map2 ViewWorkingData
                 (Decode.field "columns" <| Decode.list Decode.string)
                 (Decode.field "records" <| Decode.list (Decode.list Decode.string))
@@ -295,6 +299,16 @@ modalContentDecoder =
 encodeModalContent : ModalContent -> Encode.Value
 encodeModalContent modalContent_ =
     case modalContent_ of
+        ViewTaggedData ->
+            Encode.object
+                [ ( "viewTaggedData", Encode.null )
+                ]
+
+        ViewManageTags ->
+            Encode.object
+                [ ( "viewManageTags", Encode.null )
+                ]
+
         ViewWorkingData columns records ->
             let
                 valuesEncoding =
@@ -304,7 +318,7 @@ encodeModalContent modalContent_ =
                         ]
             in
             Encode.object
-                [ ( "viewUntaggedWorkspaceData", valuesEncoding )
+                [ ( "viewWorkingData", valuesEncoding )
                 ]
 
         ViewImportFileRecords columns records stacking ->
@@ -377,10 +391,12 @@ encodeModalContent modalContent_ =
 -}
 type Msg
     = RemoveTag String
+    | UserClickedViewTaggedDataButton
+    | UserClickedManageTagsButton
     | UserClickedItemInPlaceRegexDropDownList ColumnHeadingName Regex
     | UserClickedRequestDeleteDataButton
     | DeleteLocalData
-    | ToggleLocale
+    | UserClickedToggleLocale
     | SetLocale String
     | TagInput String
     | CreateTagFromBuffer
@@ -417,6 +433,12 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UserClickedViewTaggedDataButton ->
+            ( updateShowModal Modal.RegularView (Locale.translateTaggedRecords model.locale) ViewTaggedData model, Cmd.none )
+
+        UserClickedManageTagsButton ->
+            ( updateShowModal Modal.RegularView (Locale.translateManageYourTags model.locale) ViewManageTags model, Cmd.none )
+
         UserClickedImportFileButton ->
             ( model, File.Select.file [ "text/csv" ] UserSelectedFileFromSysDialog )
 
@@ -544,7 +566,7 @@ update msg model =
                 _ ->
                     ( updateSetLocale Locale.getEnglishLocale model, Cmd.none )
 
-        ToggleLocale ->
+        UserClickedToggleLocale ->
             if Locale.isEnglishLocale model.locale then
                 ( updateSetLocale Locale.getGermanLocale model, Cmd.none )
 
@@ -665,17 +687,24 @@ update msg model =
                     else
                         Dict.insert columnKey searchPatternInput model.batchTaggingOptions
 
+                workingTableData =
+                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model)
+
                 headers =
-                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model) |> .headers
+                    workingTableData.headers
 
                 rows =
-                    Maybe.withDefault (Table.TableData [] []) (getWorkingData model) |> .rows
+                    workingTableData.rows
 
                 matchedRows =
                     matchRows updatedBatchTaggingOptions headers rows
 
                 modelWithUpdatedSelectedWorkingData =
-                    TableData headers matchedRows
+                    if Dict.isEmpty updatedBatchTaggingOptions then
+                        workingTableData
+
+                    else
+                        TableData headers matchedRows
             in
             ( { model | batchTaggingOptions = updatedBatchTaggingOptions, selectedWorkingData = modelWithUpdatedSelectedWorkingData }, Cmd.none )
 
@@ -807,9 +836,49 @@ viewRows responsive headers rows =
     viewRecords responsive headers <| unwrapRows rows
 
 
-viewModalContent : Locale -> ModalContent -> Html.Html Msg
-viewModalContent locale modalContent =
+viewModalContent : Locale -> Model -> ModalContent -> Html.Html Msg
+viewModalContent locale model modalContent =
     case modalContent of
+        ViewTaggedData ->
+            let
+                someTables =
+                    Maybe.withDefault [] (List.head model.tableDataTagged)
+
+                headers_ =
+                    case getWorkspace model of
+                        EmptyWorkspace ->
+                            []
+
+                        Workspace headers ->
+                            headers
+
+                preparedRows : List { tag : Tag, headers : List ( ColumnHeadingName, Msg ), rows : List Row, dataFormats : Dict ColumnHeadingName Table.DataFormat }
+                preparedRows =
+                    List.map
+                        (\{ tag, headers, rows, dataFormats } ->
+                            let
+                                headersWithSortMsg =
+                                    List.map (\column -> ( column, SortTaggedTable tag column )) headers
+                                        |> List.append [ ( Locale.translateTag model.locale, NoOp ) ]
+                            in
+                            { tag = tag, headers = headersWithSortMsg, rows = List.map (prependCellToRow tag) rows, dataFormats = dataFormats }
+                        )
+                        someTables
+
+                rowsViews =
+                    preparedRows
+                        |> List.map
+                            (\tableDataTagged ->
+                                Table.viewWithTagData
+                                    Table.Responsive
+                                    -- use original header list for Tabledownload, since we modified it before
+                                    (TableDownload <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows tableDataTagged.dataFormats)
+                                    tableDataTagged
+                            )
+            in
+            div []
+                rowsViews
+
         ViewImportFileRecords headers records stacking ->
             if List.isEmpty records then
                 text <| Locale.translateImportDataNoRecordsFound locale
@@ -918,10 +987,29 @@ viewModalContent locale modalContent =
             else
                 viewRecords Table.Responsive headers records
 
+        ViewManageTags ->
+            div [ class "uk-padding" ]
+                [ Input.viewWithButton
+                    [ onInput TagInput, value model.addTagInputBuffer, placeholder (Locale.translateEnterATag model.locale) ]
+                    Button.Add
+                    CreateTagFromBuffer
+                , viewTagList
+                    (\tag -> RemoveTag tag)
+                    model.tags
+                ]
+
 
 getModalButtons : Locale -> ModalContent -> List (Modal.Button Msg)
 getModalButtons locale modalContent =
     case modalContent of
+        ViewTaggedData ->
+            [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateClose locale)
+            ]
+
+        ViewManageTags ->
+            [ Modal.DefaultButton Button.Secondary CloseModal (Locale.translateClose locale)
+            ]
+
         ViewWorkingData _ _ ->
             [ Modal.DefaultButton Button.Secondary CloseModal "Ok"
             ]
@@ -991,7 +1079,7 @@ view model =
                         modal_.displayProperties
                         CloseModal
                         modal_.title
-                        (viewModalContent model.locale modal_.content)
+                        (viewModalContent model.locale model modal_.content)
                         (getModalButtons model.locale modal_.content)
 
                 Nothing ->
@@ -1028,16 +1116,10 @@ view model =
                     taggingSectionNav
                 ]
             , div [ class "uk-margin" ]
-                [ button [ class "uk-button uk-button-small uk-align-right", onClick ToggleLocale ]
-                    [ text <| Locale.translateLocale model.locale ++ ": " ++ localeTranslation ]
-                , button [ class "uk-button uk-button-small uk-align-right uk-button-danger", onClick UserClickedRequestDeleteDataButton ] [ text (Locale.translateDeleteYourLocalData model.locale) ]
-                , span
+                [ span
                     [ class "uk-label uk-text-small" ]
                     [ text "NOTE" ]
                 , span [ class "uk-text-small uk-text-light" ] [ text <| "   " ++ Locale.translateInfoOnHowDataIsStored model.locale ]
-                ]
-            , div []
-                [ viewManageTagsSection (Locale.translateManageYourTags model.locale) (Locale.translateEnterATag model.locale) model.addTagInputError model.addTagInputBuffer model.tags TagInput CreateTagFromBuffer RemoveTag
                 ]
             ]
         , div
@@ -1343,18 +1425,20 @@ viewTaggingIconNav ( history1, history2 ) =
                 ( NavBar.Disabled NavBar.Undo, NoOp, [] )
     in
     NavBar.viewIconNav
-        [ ( NavBar.Import, UserClickedImportFileButton, [] )
-        , ( NavBar.Spacer, NoOp, [] )
-        , ( NavBar.ViewTableData, UserClickedViewWorkingDataNavButtonInTaggingSection, [] )
-        , ( NavBar.ViewTaggedData, NoOp, [] )
-        , ( NavBar.Spacer, NoOp, [] )
-        , ( NavBar.ViewManageTags, NoOp, [] )
-        , ( NavBar.Spacer, NoOp, [] )
-        , undoButton
+        [ undoButton
+        , ( NavBar.Delete, UserClickedRequestDeleteDataButton, [] )
+        , ( NavBar.Language, UserClickedToggleLocale, [] )
 
         -- , ( NavBar.Disabled NavBar.Redo, NoOp, [] )
         -- , ( NavBar.Disabled NavBar.Backward, NoOp, [] )
         -- , ( NavBar.Disabled NavBar.Forward, NoOp, [] )
+        ]
+        [ ( NavBar.Import, UserClickedImportFileButton, [] )
+        , ( NavBar.Spacer, NoOp, [] )
+        , ( NavBar.ViewTableData, UserClickedViewWorkingDataNavButtonInTaggingSection, [] )
+        , ( NavBar.ViewTaggedData, UserClickedViewTaggedDataButton, [] )
+        , ( NavBar.Spacer, NoOp, [] )
+        , ( NavBar.ViewManageTags, UserClickedManageTagsButton, [] )
         ]
 
 

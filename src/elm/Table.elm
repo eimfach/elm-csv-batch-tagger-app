@@ -412,7 +412,7 @@ view responsive headers rows =
 
 viewRow : (List (Html.Attribute msg) -> List (Html.Html msg) -> Html.Html msg) -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
 viewRow tableElement elementAttr cells =
-    tr []
+    tr [ class "uk-animation-slide-top" ]
         (List.map
             (\content -> tableElement elementAttr [ content ])
             cells
@@ -434,7 +434,7 @@ viewWithTagData responsive exportAction { tag, headers, rows } =
                     [ class "uk-text-large" ]
                     [ text tag ]
                 ]
-            , NavBar.viewIconNav [ ( NavBar.Export, exportAction, [] ) ]
+            , NavBar.viewIconNav [] [ ( NavBar.Export, exportAction, [] ) ]
             ]
         , view
             responsive

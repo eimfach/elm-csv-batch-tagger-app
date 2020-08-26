@@ -1,4 +1,4 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateNoWorkingData, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateTitleRemainingWorkingData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateClose, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateNoWorkingData, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateTitleRemainingWorkingData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -86,6 +86,16 @@ localeDecoder =
 -- "Please select a file to work with first. Your file may be empty."
 -- "Table Data lookup failed. No Data given."
 -- "expecting float number"
+
+
+translateClose : Translation
+translateClose locale =
+    case locale of
+        EN ->
+            "Close"
+
+        DE ->
+            "Schliessen"
 
 
 translateViewUserDocumentation : Translation
