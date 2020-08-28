@@ -34,11 +34,6 @@ type DisplayProperties
     | Fullscreen
 
 
-type Heading msg
-    = Plain String
-    | Element (Html msg)
-
-
 encodeState : State content -> (content -> Encode.Value) -> Encode.Value
 encodeState state contentEncoder =
     Encode.object

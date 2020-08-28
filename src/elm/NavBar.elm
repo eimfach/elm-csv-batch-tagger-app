@@ -91,7 +91,7 @@ mapActionToElement ( action, msg, attr ) =
 viewIconNav : Bool -> List ( NavItem, msg, List (Html.Attribute msg) ) -> List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
 viewIconNav activePadding destructiveButtons constructiveButtons =
     div
-        [ classList [ ( "uk-padding", activePadding ) ], class "uk-background-primary uk-flex uk-flex-between uk-padding-remove-top uk-padding-remove-bottom" ]
+        [ classList [ ( "uk-padding", activePadding ) ], class "uk-flex uk-flex-between uk-padding-remove-top uk-padding-remove-bottom" ]
         [ ul [ class "uk-iconnav" ]
             (List.map
                 mapActionToElement

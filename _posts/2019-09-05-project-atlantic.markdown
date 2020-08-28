@@ -61,8 +61,9 @@ date: '2018-08-29 10:26'
 8. UI/UX Improvments
 
 - [x] Merge File Select and Tagging Section
-- [ ] Instant Search for Batch Tagging
-- [ ] Move 'Manage Tags' and 'Tagged Records' Sections into Tagging Section accessible via NavBar Icon
+- [x] Instant Search for Batch Tagging
+- [x] Move 'Manage Tags' and 'Tagged Records' Sections into Tagging Section accessible via NavBar Icon
+- [ ] UX overhaul for tag assignment
 
 9. Integrate `elm-program-test`
    - [Discourse Presentation](https://discourse.elm-lang.org/t/elm-program-test-3-0-0-new-docs-support-for-http-and-ports/4235)

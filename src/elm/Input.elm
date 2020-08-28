@@ -2,7 +2,7 @@ module Input exposing (viewAutocomplete, viewDefault, viewRadio, viewRadioGroup,
 
 import Button
 import Html exposing (Attribute, Html, datalist, div, input, label, option, span, text)
-import Html.Attributes exposing (attribute, class, id, list, name, style, type_, value)
+import Html.Attributes exposing (attribute, class, id, list, name, type_, value)
 import Html.Events exposing (onClick)
 import Set exposing (Set)
 
@@ -16,7 +16,7 @@ view childs =
 viewDefault : String -> String -> List (Attribute msg) -> Html msg
 viewDefault icon val inputAttr =
     view
-        [ span [ class "uk-form-icon", attribute "uk-icon" "icon: search" ] []
+        [ span [ class "uk-form-icon", attribute "uk-icon" <| "icon: " ++ icon ] []
         , input
             ([ class "uk-input ", type_ "text", value val ]
                 ++ inputAttr

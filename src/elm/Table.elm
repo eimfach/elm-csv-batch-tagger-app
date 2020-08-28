@@ -1,4 +1,4 @@
-module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), DataFormats, Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, decodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
+module Table exposing (Cell, ColumnHeadingName, Currency(..), DataFormat(..), DataFormats, Responsive(..), Row, TableData, TableDataTagged, Tag, decodeTableData, decodeTableDataList, decodeTableDataTaggedList, detectDataFormats, encodeTableData, encodeTableDataTagged, flattenRows, getColumnData, getColumnDataWith, getColumnDataWithParser, parseCurrencyToFloat, prependCellToRow, rowPlain, setADataFormat, sort, view, viewSingle, viewWithTagData)
 
 import Dict exposing (Dict)
 import Helpers exposing (isResultOk)
@@ -397,12 +397,12 @@ view responsive headers rows =
         classes =
             case responsive of
                 Responsive ->
-                    "uk-table uk-table-responsive uk-table-divider uk-table-middle uk-table-small"
+                    "uk-table-responsive"
 
                 Unresponsive ->
-                    "uk-table uk-table-divider uk-table-middle uk-table-small"
+                    ""
     in
-    table [ class classes ]
+    table [ class "uk-table uk-table-striped uk-table-divider uk-table-middle ", class classes ]
         [ thead []
             [ viewRow th [] <| List.map (\( column, msg ) -> span [ onClick msg ] [ text column ]) headers ]
         , tbody []

@@ -2,10 +2,9 @@ module Button exposing (ActionType(..), Alignment(..), Size(..), Text, Type(..),
 
 import Dict exposing (Dict)
 import Html exposing (button, div, h3, li, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, type_)
+import Html.Attributes exposing (attribute, class, type_)
 import Html.Events exposing (onClick)
 import Set
-import StoryBook.SortTable exposing (Msg)
 
 
 type ActionType
@@ -117,12 +116,12 @@ view msg btnType btnActionType btnText =
 
 viewWithDropDown : Type -> ActionType -> Text -> Dict String (List ( String, msg )) -> Html.Html msg
 viewWithDropDown btnType btnActionType btnText dropDownList =
-    div []
+    div [ class "uk-width-expand" ]
         [ button
-            [ type_ "button", class (mapButtonStyles btnType) ]
+            [ type_ "button", class (mapButtonStyles btnType), class "uk-width-expand" ]
             [ span (mapButtonActionType btnActionType) []
             ]
-        , div [ class "uk-width-2xlarge", attribute "uk-dropdown" "mode: click; pos: bottom-center" ]
+        , div [ class "uk-width-large", attribute "uk-dropdown" "mode: click; pos: bottom-center" ]
             [ h3 [] [ text btnText ]
             , div [ class "uk-dropdown-grid uk-child-width-1-2@m", attribute "uk-grid" "" ] <|
                 viewGridDropdownList dropDownList

@@ -2,7 +2,6 @@ module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale
 
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Parsers exposing (parseFloat)
 
 
 type Locale
