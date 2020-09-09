@@ -1,4 +1,4 @@
-module Helpers exposing (isResultOk, maybeToBool)
+module Helpers exposing (Padding(..), getPaddingClasses, isResultOk, maybeToBool)
 
 
 maybeToBool : Maybe a -> Bool
@@ -19,3 +19,33 @@ isResultOk result =
 
         Err _ ->
             False
+
+
+type Padding
+    = PaddingAll
+    | PaddingLeftRight
+    | PaddingTopBottom
+    | PaddingTop
+    | PaddingBottom
+    | NoPadding
+
+
+getPaddingClasses padding =
+    case padding of
+        NoPadding ->
+            ""
+
+        PaddingAll ->
+            "uk-padding"
+
+        PaddingLeftRight ->
+            "uk-padding uk-padding-remove-top uk-padding-remove-bottom"
+
+        PaddingTopBottom ->
+            "uk-padding uk-padding-remove-left uk-padding-remove-right"
+
+        PaddingTop ->
+            "uk-padding uk-padding-remove-bottom uk-padding-remove-left uk-padding-remove-right"
+
+        PaddingBottom ->
+            "uk-padding uk-padding-remove-top uk-padding-remove-left uk-padding-remove-right"

@@ -1,8 +1,10 @@
 module NavBar exposing (NavItem(..), viewIconNav)
 
+import Helpers
 import Html exposing (button, div, li, span, text, ul)
-import Html.Attributes exposing (attribute, class, classList, style)
+import Html.Attributes exposing (attribute, class, style)
 import Html.Events exposing (onClick)
+import Locale exposing (Locale)
 
 
 
@@ -36,38 +38,38 @@ viewIconNavItem tooltip attr msg =
         ]
 
 
-mapActionToElement : ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
-mapActionToElement ( action, msg, attr ) =
+mapActionToElement : Locale -> ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
+mapActionToElement locale ( action, msg, attr ) =
     case action of
         CountBadge val ->
-            span [ class "uk-badge uk-padding-small" ] [ text <| String.fromInt val ++ " Results" ]
+            span [ class "uk-badge uk-padding-small" ] [ text <| String.fromInt val ++ " " ++ Locale.translateResults locale ]
 
         Spacer ->
             viewIconNavItem "" [ style "border-left" "1px solid #efefef", style "height" "26px" ] msg
 
         Workspace ->
-            viewIconNavItem "Switch Workspace" (attribute "uk-icon" "icon: folder" :: attr) msg
+            viewIconNavItem (Locale.translateSwitchWorkspace locale) (attribute "uk-icon" "icon: folder" :: attr) msg
 
         TagData ->
-            viewIconNavItem "Tag this Data" (attribute "uk-icon" "icon: tag" :: attr) msg
+            viewIconNavItem (Locale.translateTagThisData locale) (attribute "uk-icon" "icon: tag" :: attr) msg
 
         Language ->
-            viewIconNavItem "Toggle Language" (attribute "uk-icon" "icon: world" :: attr) msg
+            viewIconNavItem (Locale.translateToggleLanguage locale) (attribute "uk-icon" "icon: world" :: attr) msg
 
         Delete ->
-            viewIconNavItem "Delete Workspace" (attribute "uk-icon" "icon: trash" :: attr) msg
+            viewIconNavItem (Locale.translateDeleteWorkspace locale) (attribute "uk-icon" "icon: trash" :: attr) msg
 
         ViewTaggedData ->
-            viewIconNavItem "View Tagged Data" (attribute "uk-icon" "icon: database" :: attr) msg
+            viewIconNavItem (Locale.translateViewTaggedData locale) (attribute "uk-icon" "icon: database" :: attr) msg
 
         ViewManageTags ->
-            viewIconNavItem "Manage your Tags" (attribute "uk-icon" "icon: tag" :: attr) msg
+            viewIconNavItem (Locale.translateManageYourTags locale) (attribute "uk-icon" "icon: tag" :: attr) msg
 
         Undo ->
-            viewIconNavItem "Undo" (attribute "uk-icon" "icon: reply" :: attr) msg
+            viewIconNavItem (Locale.translateUndo locale) (attribute "uk-icon" "icon: reply" :: attr) msg
 
         Redo ->
-            viewIconNavItem "Redo" (attribute "uk-icon" "icon: forward" :: attr) msg
+            viewIconNavItem (Locale.translateRedo locale) (attribute "uk-icon" "icon: forward" :: attr) msg
 
         Forward ->
             viewIconNavItem "Forwards" (attribute "uk-icon" "icon: chevron-right" :: attr) msg
@@ -76,30 +78,30 @@ mapActionToElement ( action, msg, attr ) =
             viewIconNavItem "Backwards" (attribute "uk-icon" "icon: chevron-left" :: attr) msg
 
         Export ->
-            viewIconNavItem "Export to CSV" (attribute "uk-icon" "icon: download" :: attr) msg
+            viewIconNavItem (Locale.translateExportToCSV locale) (attribute "uk-icon" "icon: download" :: attr) msg
 
         Import ->
-            viewIconNavItem "Import from CSV" (attribute "uk-icon" "icon: plus" :: attr) msg
+            viewIconNavItem (Locale.translateImportFromCSV locale) (attribute "uk-icon" "icon: plus" :: attr) msg
 
         ViewTableData ->
-            viewIconNavItem "View Working Data" (attribute "uk-icon" "icon: table" :: attr) msg
+            viewIconNavItem (Locale.translateViewWorkingData locale) (attribute "uk-icon" "icon: table" :: attr) msg
 
         Disabled action_ ->
-            mapActionToElement ( action_, msg, [ class "ui-disabled uk-disabled" ] )
+            mapActionToElement locale ( action_, msg, [ class "ui-disabled uk-disabled" ] )
 
 
-viewIconNav : Bool -> List ( NavItem, msg, List (Html.Attribute msg) ) -> List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
-viewIconNav activePadding destructiveButtons constructiveButtons =
+viewIconNav : Locale -> Helpers.Padding -> List ( NavItem, msg, List (Html.Attribute msg) ) -> List ( NavItem, msg, List (Html.Attribute msg) ) -> Html.Html msg
+viewIconNav locale activePadding destructiveButtons constructiveButtons =
     div
-        [ classList [ ( "uk-padding", activePadding ) ], class "uk-flex uk-flex-between uk-padding-remove-top uk-padding-remove-bottom" ]
+        [ class <| "uk-flex uk-flex-between " ++ Helpers.getPaddingClasses activePadding ]
         [ ul [ class "uk-iconnav" ]
             (List.map
-                mapActionToElement
+                (mapActionToElement locale)
                 destructiveButtons
             )
         , ul [ class "uk-iconnav" ]
             (List.map
-                mapActionToElement
+                (mapActionToElement locale)
                 constructiveButtons
             )
         ]

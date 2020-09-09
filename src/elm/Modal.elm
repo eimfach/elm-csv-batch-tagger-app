@@ -1,4 +1,4 @@
-module Modal exposing (Button(..), DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
+module Modal exposing (Button(..), ButtonSection(..), DisplayProperties(..), State, Title, Visibility(..), createStateDecoder, encodeState, view)
 
 import Button
 import Html exposing (Html, button, div, h2, text)
@@ -11,6 +11,11 @@ import Json.Encode as Encode
 type Button msg
     = DefaultButton Button.Type msg Title
     | IconButton Button.Type msg Title Button.ActionType
+
+
+type ButtonSection msg
+    = DefaultButtonAlignment (List (Button msg))
+    | SpreadLeftRightButtonAlignment (List (Button msg))
 
 
 type alias State content =
@@ -99,8 +104,8 @@ viewModalButton button =
             Button.view msg btnType actionType title
 
 
-view : DisplayProperties -> msg -> String -> Html msg -> List (Button msg) -> Html msg
-view displayProperties closeMsg heading content buttons =
+view : DisplayProperties -> msg -> String -> Html msg -> ButtonSection msg -> Html msg
+view displayProperties closeMsg heading content buttonSection =
     let
         displayPropertyClasses =
             case displayProperties of
@@ -109,6 +114,18 @@ view displayProperties closeMsg heading content buttons =
 
                 Fullscreen ->
                     [ ( "uk-modal-full", False ), ( "uk-modal-container", True ) ]
+
+        viewButtons =
+            case buttonSection of
+                DefaultButtonAlignment buttons ->
+                    div
+                        [ class "uk-modal-footer uk-text-right" ]
+                        (List.map viewModalButton buttons)
+
+                SpreadLeftRightButtonAlignment buttons ->
+                    div
+                        [ class "uk-modal-footer uk-flex uk-flex-between" ]
+                        (List.map viewModalButton buttons)
     in
     div [ class "uk-modal", class "uk-open", classList displayPropertyClasses, style "display" "block" ]
         [ div [ class "uk-modal-dialog uk-animation-slide-top" ]
@@ -120,8 +137,6 @@ view displayProperties closeMsg heading content buttons =
                 ]
             , div [ class "uk-modal-body", attribute "uk-overflow-auto" "" ]
                 [ content ]
-            , div
-                [ class "uk-modal-footer uk-text-right" ]
-                (List.map viewModalButton buttons)
+            , viewButtons
             ]
         ]

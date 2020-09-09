@@ -8,6 +8,7 @@ import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List.Extra
+import Locale exposing (Locale)
 import NavBar
 import Parser exposing ((|.), (|=))
 import Parsers
@@ -419,8 +420,8 @@ viewRow tableElement elementAttr cells =
         )
 
 
-viewWithTagData : Responsive -> msg -> { tag : Tag, headers : List ( ColumnHeadingName, msg ), rows : List Row, dataFormats : Dict ColumnHeadingName DataFormat } -> Html msg
-viewWithTagData responsive exportAction { tag, headers, rows } =
+viewWithTagData : Locale -> Responsive -> msg -> { tag : Tag, headers : List ( ColumnHeadingName, msg ), rows : List Row, dataFormats : Dict ColumnHeadingName DataFormat } -> Html msg
+viewWithTagData locale responsive exportAction { tag, headers, rows } =
     let
         plainPreparedRows =
             rows |> flattenRows |> List.map (List.map text)
@@ -434,7 +435,7 @@ viewWithTagData responsive exportAction { tag, headers, rows } =
                     [ class "uk-text-large" ]
                     [ text tag ]
                 ]
-            , NavBar.viewIconNav False [] [ ( NavBar.Export, exportAction, [] ) ]
+            , NavBar.viewIconNav locale Helpers.PaddingBottom [] [ ( NavBar.Export, exportAction, [] ) ]
             ]
         , view
             responsive

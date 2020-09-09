@@ -8,6 +8,7 @@ import Dict exposing (Dict)
 import File exposing (File)
 import File.Download as Download
 import File.Select
+import Helpers
 import Html exposing (Html, a, button, div, h1, h2, h3, h4, h5, hr, input, label, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, checked, class, classList, for, href, id, placeholder, style, target, type_, value)
 import Html.Events exposing (onClick, onInput)
@@ -15,11 +16,11 @@ import Html.Lazy
 import Input
 import Json.Decode as Decode
 import Json.Encode as Encode
+import List
 import List.Extra as ListExtra
 import Locale exposing (Locale, translateImportData)
 import Modal
 import NavBar
-import Parser
 import Regex
 import Set exposing (Set)
 import Table as Table exposing (Cell, ColumnHeadingName, Row, TableData, TableDataTagged, Tag, decodeTableData, decodeTableDataList, decodeTableDataTaggedList, encodeTableData, encodeTableDataTagged, flattenRows, parseCurrencyToFloat, prependCellToRow)
@@ -415,7 +416,8 @@ type Msg
     | NoOp
     | UserClickedCloseModalButton
     | UndoMapRecordToTag UndoStrategy
-    | UserClickedTableExportButton TableDataTagged
+    | UserClickedExportTaggedTableButton TableDataTagged
+    | UserClickedExportSelectedTableButton
     | SortTaggedTable Tag ColumnHeadingName
     | UserClickedInitialFileSelectButton
     | UserSelectedFileFromSysDialog File
@@ -442,8 +444,15 @@ updateWithStorage msg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        UserTypedTextInSelectTagInput inp ->
-            ( { model | selectedTag = inp }, Cmd.none )
+        UserClickedExportSelectedTableButton ->
+            let
+                csvFileContent =
+                    tableDataToCsv model.selectedWorkingData.headers model.selectedWorkingData.rows
+            in
+            ( model, Download.string "selected-working-data.csv" "text/csv" csvFileContent )
+
+        UserTypedTextInSelectTagInput val ->
+            ( { model | selectedTag = val }, Cmd.none )
 
         UserClickedViewTagAssignmentButton ->
             ( updateShowModal Modal.Fullscreen
@@ -628,8 +637,11 @@ update msg model =
             in
             ( { model | tags = newTags, addTagInputBuffer = addTagInputBuffer, addTagInputError = addTagInputError }, Cmd.none )
 
-        UserClickedAssignTagButton rows theTag ->
+        UserClickedAssignTagButton rows tag ->
             let
+                trimmedTag =
+                    String.trim tag
+
                 tableDataOrigin =
                     Maybe.withDefault (TableData [] []) (List.head model.tableData)
 
@@ -640,17 +652,17 @@ update msg model =
                     Maybe.withDefault [] (List.head model.tableDataTagged)
 
                 tableDataTaggedAndPrepared =
-                    setTagInstance theTag commonHeaders tableDataTagged
+                    setTagInstance trimmedTag commonHeaders tableDataTagged
 
                 updatedTableDataTagged =
                     List.map
                         (\table ->
-                            if table.tag == theTag then
+                            if table.tag == trimmedTag then
                                 let
                                     updatedRows =
                                         List.concat [ table.rows, rows ]
                                 in
-                                Table.detectDataFormats (TableDataTagged theTag table.headers updatedRows table.dataFormats)
+                                Table.detectDataFormats (TableDataTagged trimmedTag table.headers updatedRows table.dataFormats)
 
                             else
                                 table
@@ -674,7 +686,7 @@ update msg model =
                         | tableDataTagged = updatedTableDataTagged :: model.tableDataTagged
                         , tableData = updatedTableDataOrigin :: model.tableData
                         , selectedWorkingData = TableData [] []
-                        , tags = Set.insert theTag model.tags
+                        , tags = Set.insert trimmedTag model.tags
                     }
             in
             ( updateCloseModal updatedModel, Cmd.none )
@@ -731,23 +743,13 @@ update msg model =
                     in
                     ( { model | tableData = newHistoryData, tableDataTagged = newHistoryDataTagged }, Cmd.none )
 
-        UserClickedTableExportButton { tag, headers, rows } ->
+        UserClickedExportTaggedTableButton { tag, headers, rows } ->
             {- expected that each row has the tag name prepended -}
             let
-                preparedHeaders =
-                    setCSVSemicolonsInList (Locale.translateTag model.locale :: headers)
-
-                preparedRows =
-                    List.map setCSVSemicolonsInList <| flattenRows rows
-
-                theTable =
-                    preparedHeaders
-                        :: preparedRows
-
-                theCsvString =
-                    List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
+                csvFileContent =
+                    tableDataToCsv (Locale.translateTag model.locale :: headers) rows
             in
-            ( model, Download.string (tag ++ "-" ++ Locale.translateTableFileName model.locale ++ ".csv") "text/csv" theCsvString )
+            ( model, Download.string (String.replace " " "-" tag ++ "-" ++ Locale.translateTableFileName model.locale ++ ".csv") "text/csv" csvFileContent )
 
         SortTaggedTable theTagToLookup column ->
             let
@@ -889,9 +891,10 @@ viewModalContent locale model modalContent =
                         |> List.map
                             (\tableDataTagged ->
                                 Table.viewWithTagData
+                                    locale
                                     Table.Responsive
                                     -- use original header list for Tabledownload, since we modified it before
-                                    (UserClickedTableExportButton <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows tableDataTagged.dataFormats)
+                                    (UserClickedExportTaggedTableButton <| TableDataTagged tableDataTagged.tag headers_ tableDataTagged.rows tableDataTagged.dataFormats)
                                     tableDataTagged
                             )
             in
@@ -944,7 +947,7 @@ viewModalContent locale model modalContent =
             text info
 
         ViewWarningDeleteLocalData ->
-            text (Locale.translateWarningDeleteLocalData locale)
+            p [ class "uk-text-danger uk-text-bolder" ] [ text (Locale.translateWarningDeleteLocalData locale) ]
 
         ViewDropIrregularRecords headers irregularRecords _ ->
             div
@@ -1003,62 +1006,73 @@ viewModalContent locale model modalContent =
                 ]
 
 
-getModalButtons : Locale -> Model -> ModalContent -> List (Modal.Button Msg)
+getModalButtons : Locale -> Model -> ModalContent -> Modal.ButtonSection Msg
 getModalButtons locale model modalContent =
     case modalContent of
         ViewTaggedData ->
-            [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateClose locale)
-            ]
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateClose locale)
+                ]
 
         ViewManageTags ->
-            [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateClose locale)
-            ]
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateClose locale)
+                ]
 
         ViewWorkingData _ _ ->
-            [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
-            ]
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
+                ]
 
         ViewImportFileRecords headers records stacking ->
             if List.isEmpty records then
-                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
-                ]
+                Modal.DefaultButtonAlignment
+                    [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
+                    ]
 
             else
-                [ Modal.IconButton Button.Primary (UserClickedConfirmDataImportButton stacking headers records) (Locale.translateImport locale) Button.Import
-                , Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
-                ]
+                Modal.DefaultButtonAlignment
+                    [ Modal.IconButton Button.Primary (UserClickedConfirmDataImportButton stacking headers records) (Locale.translateImport locale) Button.Import
+                    , Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
+                    ]
 
         ViewTagAssignment _ plainRecords ->
             if List.isEmpty plainRecords then
-                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
-                ]
+                Modal.DefaultButtonAlignment
+                    [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
+                    ]
 
             else
                 let
                     saveMsg =
                         UserClickedAssignTagButton (List.map Row plainRecords) model.selectedTag
                 in
-                [ Modal.DefaultButton Button.Primary saveMsg (Locale.translateSave locale)
+                Modal.DefaultButtonAlignment
+                    [ Modal.DefaultButton Button.Primary saveMsg (Locale.translateSave locale)
+                    , Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
+                    ]
+
+        ViewInfo _ ->
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
+                ]
+
+        ViewWarningDeleteLocalData ->
+            Modal.SpreadLeftRightButtonAlignment
+                [ Modal.IconButton Button.Danger DeleteLocalData (Locale.translateDeleteYourLocalData locale) Button.Warning
+                , Modal.DefaultButton Button.Default UserClickedCloseModalButton (Locale.translateCancel locale)
+                ]
+
+        ViewDropIrregularRecords headers irregularRecords regularRecords ->
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Primary (UserClickedDropButtonInDropDialog headers irregularRecords regularRecords) (Locale.translateDrop locale)
                 , Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
                 ]
 
-        ViewInfo _ ->
-            [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton "Ok"
-            ]
-
-        ViewWarningDeleteLocalData ->
-            [ Modal.DefaultButton Button.Danger DeleteLocalData (Locale.translateProceed locale)
-            , Modal.DefaultButton Button.Default UserClickedCloseModalButton (Locale.translateCancel locale)
-            ]
-
-        ViewDropIrregularRecords headers irregularRecords regularRecords ->
-            [ Modal.DefaultButton Button.Primary (UserClickedDropButtonInDropDialog headers irregularRecords regularRecords) (Locale.translateDrop locale)
-            , Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
-            ]
-
         ViewIncompatibleData _ _ ->
-            [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
-            ]
+            Modal.DefaultButtonAlignment
+                [ Modal.DefaultButton Button.Secondary UserClickedCloseModalButton (Locale.translateCancel locale)
+                ]
 
 
 view : Model -> HtmlNode
@@ -1067,14 +1081,11 @@ view model =
         tableData =
             Maybe.withDefault (TableData [] []) (List.head model.tableData)
 
-        tableDataTagged =
-            Maybe.withDefault [] (List.head model.tableDataTagged)
-
         currentRow =
             Maybe.withDefault (Row []) (List.head tableData.rows)
 
         taggingSectionNav =
-            viewMainNav ( model.tableData, model.tableDataTagged )
+            viewMainNav model.locale ( model.tableData, model.tableDataTagged )
 
         modal =
             case model.showModal of
@@ -1088,16 +1099,6 @@ view model =
 
                 Nothing ->
                     text ""
-
-        localeTranslation =
-            if Locale.isEnglishLocale model.locale then
-                "EN"
-
-            else if Locale.isGermanLocale model.locale then
-                "DE"
-
-            else
-                "UNKNOWN"
     in
     div [ id "container", class "uk-container" ]
         [ modal
@@ -1209,7 +1210,7 @@ viewTaggingSection model headers row rows nav =
                 BatchTagging ->
                     ( False, viewBatchTaggingTab model UserTypedTextInSearchInput headers rows )
     in
-    div [ class "uk-card uk-card-primary uk-card-body uk-width-2xlarge" ]
+    div [ class "uk-card uk-card-default uk-card-body uk-width-2xlarge uk-padding-remove-left uk-padding-remove-right" ]
         [ nav
         , div [ class "uk-padding" ]
             [ div [ class "uk-width-1-1 uk-margin-large" ]
@@ -1260,14 +1261,16 @@ viewInstantSearchResults model =
 
     else
         div []
-            [ NavBar.viewIconNav False
+            [ NavBar.viewIconNav
+                model.locale
+                Helpers.PaddingBottom
                 []
                 [ ( NavBar.CountBadge <| List.length model.selectedWorkingData.rows, NoOp, [] )
-                , ( NavBar.Export, NoOp, [] )
+                , ( NavBar.Export, UserClickedExportSelectedTableButton, [] )
                 , ( NavBar.TagData, UserClickedViewTagAssignmentButton, [] )
                 ]
             , div [ class "uk-text-emphasis" ]
-                [ viewRows Table.Unresponsive model.selectedWorkingData.headers model.selectedWorkingData.rows ]
+                [ viewRows Table.Responsive model.selectedWorkingData.headers model.selectedWorkingData.rows ]
             ]
 
 
@@ -1342,8 +1345,8 @@ viewBatchTaggingInput labelText locale idVal val options action =
         ]
 
 
-viewMainNav : ( List a, List a1 ) -> Html Msg
-viewMainNav ( history1, history2 ) =
+viewMainNav : Locale -> ( List TableData, List (List TableDataTagged) ) -> Html Msg
+viewMainNav locale ( history1, history2 ) =
     {--naive, consider tuple in model & origin data as own field in model--}
     let
         ( history1Length, history2Length ) =
@@ -1358,9 +1361,24 @@ viewMainNav ( history1, history2 ) =
 
             else
                 ( NavBar.Disabled NavBar.Undo, NoOp, [] )
+
+        viewWorkingDataButton =
+            if List.isEmpty history1 then
+                ( NavBar.Disabled NavBar.ViewTableData, NoOp, [] )
+
+            else
+                ( NavBar.ViewTableData, UserClickedViewWorkingData, [] )
+
+        viewTaggedDataButton =
+            if List.isEmpty history2 then
+                ( NavBar.Disabled NavBar.ViewTaggedData, NoOp, [] )
+
+            else
+                ( NavBar.ViewTaggedData, UserClickedViewTaggedDataButton, [] )
     in
     NavBar.viewIconNav
-        True
+        locale
+        Helpers.PaddingLeftRight
         [ ( NavBar.Delete, UserClickedRequestDeleteDataButton, [] )
         , ( NavBar.Language, UserClickedToggleLocale, [] )
         , ( NavBar.Spacer, NoOp, [] )
@@ -1373,8 +1391,8 @@ viewMainNav ( history1, history2 ) =
         ]
         [ ( NavBar.Import, UserClickedImportFileButton, [] )
         , ( NavBar.Spacer, NoOp, [] )
-        , ( NavBar.ViewTableData, UserClickedViewWorkingData, [] )
-        , ( NavBar.ViewTaggedData, UserClickedViewTaggedDataButton, [] )
+        , viewWorkingDataButton
+        , viewTaggedDataButton
         , ( NavBar.Spacer, NoOp, [] )
         , ( NavBar.ViewManageTags, UserClickedManageTagsButton, [] )
         ]
@@ -1382,6 +1400,21 @@ viewMainNav ( history1, history2 ) =
 
 
 -- HELPERS
+
+
+tableDataToCsv headers rows =
+    let
+        preparedHeaders =
+            setCSVSemicolonsInList headers
+
+        preparedRows =
+            List.map setCSVSemicolonsInList <| flattenRows rows
+
+        theTable =
+            preparedHeaders
+                :: preparedRows
+    in
+    List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
 
 
 matchRows : Dict String String -> List String -> List Row -> List Row

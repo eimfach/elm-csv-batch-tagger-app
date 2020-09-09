@@ -1,4 +1,4 @@
-module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateClose, translateDefaultTags, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateNoWorkingData, translateProceed, translateRecordsThatWillBeTagged, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateTableFileName, translateTag, translateTagAlreadyExists, translateTaggedRecords, translateTitleDeleteLocalData, translateTitleRemainingWorkingData, translateUncheckStackDataWarning, translateViewSourceCode, translateViewUserDocumentation, translateWarningDeleteLocalData, translateWarningLabel)
+module Locale exposing (Locale, encodeLocale, getDefaultLocale, getEnglishLocale, getGermanLocale, isEnglishLocale, isGermanLocale, localeDecoder, translateApplyTags, translateAskForDrop, translateBatchTagging, translateCancel, translateCheckboxStackData, translateClose, translateDefaultTags, translateDeleteWorkspace, translateDeleteYourLocalData, translateDrop, translateEmptyFileText, translateEmptyFileTitle, translateEnterATag, translateErrorHeading, translateErrorParsingYourFile, translateExportToCSV, translateHowBatchTaggingWorks, translateHowManualTaggingWorks, translateImport, translateImportData, translateImportDataNoRecordsFound, translateImportDataNoRecordsFoundTitle, translateImportFromCSV, translateIncompatibleDataComparison, translateIncompatibleDataIntro, translateIncompatibleDataTitle, translateInfoOnHowDataIsStored, translateIrregularRowsText, translateIrregularRowsTitle, translateLocale, translateManageYourTags, translateNoMatchingRecordsFound, translateNoRecordsToChooseFromSelectAfile, translateNoWorkingData, translateProceed, translateRecordsThatWillBeTagged, translateRedo, translateResults, translateSave, translateSelectAKeywordOrRegex, translateSelectATagToTag, translateSelectAcsvFile, translateSingleTagging, translateSwitchWorkspace, translateTableFileName, translateTag, translateTagAlreadyExists, translateTagThisData, translateTaggedRecords, translateTitleDeleteLocalData, translateTitleRemainingWorkingData, translateToggleLanguage, translateUncheckStackDataWarning, translateUndo, translateViewSourceCode, translateViewTaggedData, translateViewUserDocumentation, translateViewWorkingData, translateWarningDeleteLocalData, translateWarningLabel)
 
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -151,20 +151,20 @@ translateWarningDeleteLocalData : Translation
 translateWarningDeleteLocalData locale =
     case locale of
         EN ->
-            "Warning: Your data will be permanently deleted!"
+            "Warning: The workspace data will be permanently deleted!"
 
         DE ->
-            "Warnung: Deine Daten werden permanent gelöscht!"
+            "Warnung: Die Workspace Daten werden permanent gelöscht!"
 
 
 translateTitleDeleteLocalData : Translation
 translateTitleDeleteLocalData locale =
     case locale of
         EN ->
-            "Delete your local data"
+            "Delete this workspace data"
 
         DE ->
-            "Deine lokalen Daten löschen"
+            "Diesen Workspace löschen"
 
 
 translateDeleteYourLocalData : Translation
@@ -355,16 +355,6 @@ translateSelectAcsvFile locale =
 
         DE ->
             ".csv Datei hinzufügen"
-
-
-translateManageYourTags : Translation
-translateManageYourTags locale =
-    case locale of
-        EN ->
-            "Manage your tags"
-
-        DE ->
-            "Verwalte deine Kategorien"
 
 
 translateTag : Translation
@@ -575,3 +565,120 @@ translateTitleRemainingWorkingData locale =
 
         DE ->
             "Restliche Arbeitsdaten"
+
+
+translateSwitchWorkspace locale =
+    case locale of
+        EN ->
+            "Switch Workspace"
+
+        DE ->
+            "Workspace wechseln"
+
+
+translateTagThisData locale =
+    case locale of
+        EN ->
+            "Tag this Data"
+
+        DE ->
+            "Diese Daten kategorisieren"
+
+
+translateToggleLanguage locale =
+    case locale of
+        EN ->
+            "Toggle Language"
+
+        DE ->
+            "Sprache wechseln"
+
+
+translateDeleteWorkspace locale =
+    case locale of
+        EN ->
+            "Delete Workspace"
+
+        DE ->
+            "Workspace löschen"
+
+
+translateViewTaggedData locale =
+    case locale of
+        EN ->
+            "View Tagged Data"
+
+        DE ->
+            "Kategorisierte Daten einsehen"
+
+
+translateManageYourTags locale =
+    case locale of
+        EN ->
+            "Manage your Tags"
+
+        DE ->
+            "Kategorien hinzufügen oder löschen"
+
+
+translateUndo locale =
+    case locale of
+        EN ->
+            "Undo"
+
+        DE ->
+            "Widerrufen"
+
+
+translateRedo locale =
+    case locale of
+        EN ->
+            "Redo"
+
+        DE ->
+            "Wiederholen"
+
+
+translateExportToCSV locale =
+    case locale of
+        EN ->
+            "Export to CSV file"
+
+        DE ->
+            "Als CSV Datei exportieren"
+
+
+translateImportFromCSV locale =
+    case locale of
+        EN ->
+            "Import from CSV file"
+
+        DE ->
+            "CSV Datei importieren"
+
+
+translateViewWorkingData locale =
+    case locale of
+        EN ->
+            "View Working Data"
+
+        DE ->
+            "Arbeitsdaten einsehen"
+
+
+translateResults locale =
+    case locale of
+        EN ->
+            "Results"
+
+        DE ->
+            "Ergebnisse"
+
+
+translateX locale =
+    case locale of
+        EN ->
+            ""
+
+        DE ->
+            ""

@@ -12,6 +12,7 @@ type ActionType
     | Remove
     | Import
     | AddRegex
+    | Warning
     | NoActionType
 
 
@@ -84,6 +85,9 @@ mapButtonStyles btnType =
 mapButtonActionType : ActionType -> List (Html.Attribute msg)
 mapButtonActionType btnActionType =
     case btnActionType of
+        Warning ->
+            [ attribute "uk-icon" "icon: warning" ]
+
         Import ->
             [ attribute "uk-icon" "icon: pull" ]
 
