@@ -398,35 +398,35 @@ encodeModalContent modalContent_ =
 {-| Naming Schema : SomeoneDidSomethingSomewhereAndSomeHow
 -}
 type Msg
-    = RemoveTag String
+    = UserTypedTextInSearchInput ColumnHeadingName SearchPattern
     | UserTypedTextInSelectTagInput String
     | UserClickedViewTagAssignmentButton
     | UserClickedViewTaggedDataButton
     | UserClickedManageTagsButton
     | UserClickedItemInPlaceRegexDropDownList ColumnHeadingName Regex
     | UserClickedRequestDeleteDataButton
-    | DeleteLocalData
-    | UserClickedToggleLocale
-    | SetLocale String
-    | TagInput String
-    | CreateTagFromBuffer
-    | UserClickedAssignTagButton (List Row) Tag
-    | UserTypedTextInSearchInput ColumnHeadingName SearchPattern
-    | SetTaggingMode TaggingOption
-    | NoOp
-    | UserClickedCloseModalButton
-    | UndoMapRecordToTag UndoStrategy
-    | UserClickedExportTaggedTableButton TableDataTagged
-    | UserClickedExportSelectedTableButton
-    | SortTaggedTable Tag ColumnHeadingName
-    | UserClickedInitialFileSelectButton
-    | UserSelectedFileFromSysDialog File
-    | RuntimeCompletedFileLoadingTask String
     | UserClickedStackingCheckboxInImportDialog (List ColumnHeadingName) (List (List String)) ImportStacking
     | UserClickedConfirmDataImportButton ImportStacking (List ColumnHeadingName) (List (List String))
     | UserClickedDropButtonInDropDialog (List ColumnHeadingName) (List (List String)) (List (List String))
     | UserClickedViewWorkingData
     | UserClickedImportFileButton
+    | UserClickedToggleLocale
+    | UserClickedCloseModalButton
+    | UserClickedExportTaggedTableButton TableDataTagged
+    | UserClickedExportSelectedTableButton
+    | UserClickedInitialFileSelectButton
+    | UserSelectedFileFromSysDialog File
+    | RuntimeCompletedFileLoadingTask String
+    | RemoveTag String
+    | DeleteLocalData
+    | SetLocale String
+    | TagInput String
+    | CreateTagFromBuffer
+    | UserClickedAssignTagButton (List Row) Tag
+    | SetTaggingMode TaggingOption
+    | NoOp
+    | UndoMapRecordToTag UndoStrategy
+    | SortTaggedTable Tag ColumnHeadingName
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -1417,6 +1417,9 @@ tableDataToCsv headers rows =
     List.foldr String.append "" <| List.map (\row -> List.foldr String.append "" row) theTable
 
 
+{-| @todo #2 The matching method is not performant enough. Every keystroke does update the search results. If
+the working data gets too large, the keystrokes get unresponsive.
+-}
 matchRows : Dict String String -> List String -> List Row -> List Row
 matchRows batchTaggingOptions headers rows =
     rows

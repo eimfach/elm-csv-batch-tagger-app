@@ -127,7 +127,7 @@ view displayProperties closeMsg heading content buttonSection =
                         [ class "uk-modal-footer uk-flex uk-flex-between" ]
                         (List.map viewModalButton buttons)
     in
-    div [ class "uk-modal", class "uk-open", classList displayPropertyClasses, style "display" "block" ]
+    div [ class "uk-modal uk-open", classList displayPropertyClasses, style "display" "block" ]
         [ div [ class "uk-modal-dialog uk-animation-slide-top" ]
             [ button [ class "uk-modal-close-full uk-close-large", type_ "button", attribute "uk-close" "", onClick closeMsg ]
                 []
